@@ -286,6 +286,7 @@ pub fn test_love_number() -> LoveNumber {
         imaginary_solid: Interpolator::new(),
         real_solid: Interpolator::new(),
         love_interpolator: vec![],
+        planet_structure: PlanetStructure::default(),
     };
 
     love_number.imaginary_solid.init(
