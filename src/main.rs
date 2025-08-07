@@ -3,6 +3,8 @@ use rayon::prelude::*;
 use sci_file::{read_csv_columns_from_file, read_csv_rows_from_dir, read_csv_rows_from_file};
 use spiroid_lib::{ParticleType, Simulation, StarCsv, Universe};
 
+use wtf_tides::Layer;
+
 fn main() -> Result<()> {
     let simulations = Simulation::<Universe>::new()?;
     simulations
@@ -28,6 +30,10 @@ fn main() -> Result<()> {
                     // Maps each column of love number data into a vector.
                     let love_solid = read_csv_columns_from_file::<f64>(solid_file)?;
                     kaula.initialise_love_number_solid(&love_solid);
+
+                    let planet_file = "examples/data/planet/Trappist1_b_Fe_36_Si_29_S_27_670K.csv";
+                    let layers = read_csv_rows_from_file::<Layer>(planet_file)?;
+                    kaula.initialise_love_number_layers(&layers);
                 }
                 if let Some(ocean_file) = kaula.ocean_file() {
                     let love_ocean = read_csv_columns_from_file::<f64>(ocean_file)?;

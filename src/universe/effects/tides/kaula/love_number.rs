@@ -11,6 +11,8 @@ use std::path::PathBuf;
 use anyhow::Result;
 use num_complex::Complex;
 
+use wtf_tides::{Layer, PlanetStructure, compute_everything};
+
 #[derive(Serialize, Deserialize, PartialEq, Debug, Default, Clone)]
 pub enum ParticleComposition {
     #[default]
@@ -56,9 +58,27 @@ pub(crate) struct LoveNumber {
     pub(crate) imaginary_solid: Interpolator<f64>,
     pub(crate) real_solid: Interpolator<f64>,
     love_interpolator: Vec<Interpolator<f64>>,
+
+    #[serde(skip)]
+    planet_structure: PlanetStructure,
 }
 
 impl LoveNumber {
+    pub(crate) fn init_layers(&mut self, layers: &[Layer]) {
+        self.planet_structure.alpha_gam = 0.25;
+        self.planet_structure.degree_pp = 2.0;
+        //        self.planet_structure.liquid_layer_acceleration =  LiquidLayerAcceleration::QuasiStatic;
+        //        self.planet_structure.oscillation =  Oscillation::ForcedTides;
+
+        self.planet_structure.radius_normalisation = layers[layers.len() - 1].radius; //outermost layer radius
+        self.planet_structure.density_normalisation = 3000.0;
+        self.planet_structure.velocity_normalisation = 4000.0;
+        self.planet_structure.gravity_factor = 6.67428e-11;
+
+        self.planet_structure.layers = layers.to_vec();
+        //        self.planet_structure.three_solutions = ThreeSolutions::default();
+    }
+
     /// Fetches the real love number from the cache for index of tuple (m, p, q).
     pub(crate) fn real(&self, m: usize, p: usize, q: usize) -> f64 {
         // The cached data is stored in a 1D array, so the 3D coordinates are mapped to the 1D index.
@@ -131,6 +151,20 @@ impl LoveNumber {
 
                         // Add to cache
                         internal_cache[index] = Complex::new(k2_re, k2_im);
+
+                        // TODO lpg-tide calculation of real and imaginary part here
+                        self.planet_structure.tidal_freq = w_2lmpq;
+                        wtf_tides::compute_everything(&mut self.planet_structure)?;
+                        let k2_new = self.planet_structure.k2_wtf();
+                        println!(
+                            "tidal_freq: {}\nk2_interpolated: {}+{}i\nk2_lpg_realtime: {}+{}i",
+                            w_2lmpq,
+                            k2_re,
+                            k2_im,
+                            -k2_new.re,
+                            k2_new.im,
+                        );
+
                     } else {
                         // Cache hit
                         k2_re = k2.re;
@@ -150,7 +184,6 @@ impl LoveNumber {
 
         Ok(())
     }
-
     // Select the correct love number calculation based on the composition of the planet.
     // TODO add additional solid love numbers for different particle types when they become available.
     fn real_part(&self, freq: f64, particle_type: &ParticleComposition) -> Result<f64> {

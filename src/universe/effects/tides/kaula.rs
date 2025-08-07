@@ -11,6 +11,8 @@ use polynomials::Polynomials;
 use crate::universe::particles::{ParticleT, Planet};
 use crate::utils::{factorial, kronecker_delta};
 
+use wtf_tides::Layer;
+
 #[derive(Serialize, Deserialize, PartialEq, Debug, Default, Clone)]
 #[serde(default)]
 #[serde(deny_unknown_fields)]
@@ -72,6 +74,10 @@ impl Kaula {
         self.love_number
             .real_solid
             .init(&love_solid[0], &love_solid[2]);
+    }
+
+    pub fn initialise_love_number_layers(&mut self, planet_layers: &[Layer]) {
+        self.love_number.init_layers(planet_layers);
     }
 
     pub fn initialise_love_number_ocean(&mut self, love_ocean: &[Vec<f64>]) {
