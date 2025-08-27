@@ -11,7 +11,7 @@ mod utils;
 use universe::physics::force;
 pub use universe::{ParticleType, Planet, Star, StarCsv, Universe};
 
-impl System for Universe {
+impl System<f64> for Universe {
     // This `derive` function is called by the integrator.
     // It should call the function that calculates the derivatives of the integration quantities.
     // i.e. fill `dy` with the derivatives of `y` with respect to x (`time`).
