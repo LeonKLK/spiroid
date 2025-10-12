@@ -128,7 +128,7 @@ fn _magnetic_torque() {
     let planet = test_planet_magnetic();
     star.refresh_tidal_frequency(&planet);
     let mut wind = IsothermalWind::default();
-    wind.footpoint_conductance = 7.0e4;
+    wind.footpoint_conductance = 7e4;
     wind.init_weber_davis(SEMI_MAJOR_AXIS_VARIABLE_CHANGE, &star);
     let result = wind.magnetic_torque(&planet, &star);
     assert_eq!(expected, result);

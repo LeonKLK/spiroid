@@ -24,7 +24,7 @@ impl ConstantTimeLag {
 
         let tidal_quality = 1. / total_dissipation;
         // Smoothing parameter when tidal frequency is 0
-        let depth = 1E-08;
+        let depth = 1e-8;
         -(9. / 4.)
             * planet.mass.powi(2)
             * GRAVITATIONAL

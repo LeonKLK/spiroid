@@ -26,7 +26,7 @@ fn _derivatives_magnetic() {
         planet.semi_major_axis.powf(6.5),
     ];
     let mut wind = IsothermalWind::default();
-    wind.footpoint_conductance = 7.0e4;
+    wind.footpoint_conductance = 7e4;
 
     let mut universe = Universe {
         orbiting_body: Particle {
@@ -123,7 +123,7 @@ fn _derivatives_magnetic_tides() {
     ];
 
     let mut wind = IsothermalWind::default();
-    wind.footpoint_conductance = 7.0e4;
+    wind.footpoint_conductance = 7e4;
 
     let mut universe = Universe {
         orbiting_body: Particle {
@@ -250,7 +250,7 @@ fn _planet_semi_major_axis_13_div_2_derivative() {
         inertial: Inertial::FrequencyAveraged,
     });
     let mut wind = IsothermalWind::default();
-    wind.footpoint_conductance = 7.0e4;
+    wind.footpoint_conductance = 7e4;
     let mut magnetism = MagneticModel::Wind(wind);
     let tidal_torque_convective = tides.tidal_torque(&star, &planet);
     let magnetic_torque = magnetism.magnetic_torque(&planet, &star);

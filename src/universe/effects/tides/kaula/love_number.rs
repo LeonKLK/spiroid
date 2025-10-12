@@ -249,7 +249,7 @@ impl LoveNumber {
         // Find which section of the love number data files to use, based on the "giga-year" and convert it to an index
         #[allow(clippy::cast_possible_truncation)]
         #[allow(clippy::cast_sign_loss)]
-        let index = (time / 1.0E9 / SECONDS_IN_YEAR) as usize * 10 - 10;
+        let index = (time / 1e9 / SECONDS_IN_YEAR) as usize * 10 - 10;
         let love_interpolator = &self.love_interpolator[index];
         if freq == 0.0 {
             Ok(0.0)
@@ -402,7 +402,7 @@ impl ThermalTideModel {
             let surface_pressure_bar = surface_pressure / 100_000.;
             // Scaled thermal time scale and amplitude (using scaling formulation with fixed sma a = a_venus) Eq. 44 and 45
             // Scaled pressure Eq. 44
-            let q_0 = 10.0_f64.powf(0.48 * log10!(surface_pressure_bar) + 2.87);
+            let q_0 = 10_f64.powf(0.48 * log10!(surface_pressure_bar) + 2.87);
             // Scaled time-scale Eq. 45
             let tau_0 = 10.0_f64.powf(0.3 * log10!(surface_pressure_bar) + 0.038);
 
@@ -445,7 +445,7 @@ impl ThermalTideModel {
         star: &impl ParticleT,
         planet: &impl ParticleT,
     ) -> f64 {
-        -sqrt!(32.0_f64 * PI / 15.0) * (planet.semi_major_axis().powi(3) * planet.radius())
+        -sqrt!(32.0 * PI / 15.0) * (planet.semi_major_axis().powi(3) * planet.radius())
             / (GRAVITATIONAL * star.mass() * planet.mass())
             * frequency_dependence
     }

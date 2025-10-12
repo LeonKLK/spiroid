@@ -203,7 +203,7 @@ impl IsothermalWind {
             1.5
         } else {
             // Subsonic regime
-            1E-07
+            1e-7
         };
 
         // energy_flux_difference corresponds to total energy flux F (Eq. 24 in Weber & Davis 1967) for initial guess 'velocity', minus the
@@ -216,7 +216,7 @@ impl IsothermalWind {
             self.integration_constant,
             star,
         );
-        while abs!(energy_flux_difference) >= 1E-07 {
+        while abs!(energy_flux_difference) >= 1e-7 {
             // Computation of the derivative of F for the down-gradient Newton-Raphson method.
             let d_energy_flux_by_dv =
                 self.derivative_d_energy_flux_by_dv(velocity, distance_from_stellar_center, star);
@@ -285,11 +285,11 @@ impl IsothermalWind {
         normalised_radius: f64,
         star: &Star,
     ) -> bool {
-        //1e-03 is emprically determined to transit from unipolar to dipolar smoothly.
-        (self.critical_radius_div_alfven_radius + 1e-03 - width_around_sonic_point
+        //1e-3 is emprically determined to transit from unipolar to dipolar smoothly.
+        (self.critical_radius_div_alfven_radius + 1e-3 - width_around_sonic_point
             > star.radius / star.alfven_radius)
             && (abs!(
-                (2. * (self.critical_radius_div_alfven_radius + 1e-03) - width_around_sonic_point)
+                (2. * (self.critical_radius_div_alfven_radius + 1e-3) - width_around_sonic_point)
                     - 2. * normalised_radius
             ) <= width_around_sonic_point)
     }
@@ -327,7 +327,7 @@ impl IsothermalWind {
         );
 
         // Newton-Raphson method to find the Alfven speed.
-        while abs!(energy_flux_difference) >= 1E-07 {
+        while abs!(energy_flux_difference) >= 1e-7 {
             // Computation of the derivative, by calculating the derivative of F * alfven_speed_at_alfven_radius^2
             let estimate_d_energy_flux_by_dv = (self.speed_of_sound.powi(2) / current_alfven_speed)
                 - current_alfven_speed
@@ -385,10 +385,10 @@ impl IsothermalWind {
         let width_around_sonic_point = if TWO_PI / (star.spin * SECONDS_IN_DAY) < 1. {
             1.
         } else {
-            7E-02
+            7e-2
         };
 
-        let width_around_alfven_radius = 1E-02;
+        let width_around_alfven_radius = 1e-2;
         let x_prev;
         let x_next;
         let v_prev;
@@ -397,7 +397,7 @@ impl IsothermalWind {
         // The solution is not computed near the critical points due to non-crossing contours of the function F.
         // Newton-Raphson method
         if (abs!(
-            (2. * (self.critical_radius_div_alfven_radius + 1e-03) - width_around_sonic_point)
+            (2. * (self.critical_radius_div_alfven_radius + 1e-3) - width_around_sonic_point)
                 - 2. * normalised_radius
         ) > width_around_sonic_point)
             && (abs!(normalised_radius - 1.) > width_around_alfven_radius)
@@ -410,23 +410,23 @@ impl IsothermalWind {
         }
         if abs!(normalised_radius - 1.) <= width_around_alfven_radius {
             // Near the alfvenic point.
-            x_prev = 1. - width_around_alfven_radius - 1e-02;
+            x_prev = 1. - width_around_alfven_radius - 1e-2;
             x_next = 1. - width_around_alfven_radius;
             v_prev = self.velocity_profile(x_prev, star);
             v_next = self.velocity_profile(x_next, star);
         } else if self.near_sonic_point(width_around_sonic_point, normalised_radius, star) {
             // Near the sonic point.
-            x_prev = self.critical_radius_div_alfven_radius + 1e-03 - width_around_sonic_point;
-            x_next = self.critical_radius_div_alfven_radius + 1e-03;
+            x_prev = self.critical_radius_div_alfven_radius + 1e-3 - width_around_sonic_point;
+            x_next = self.critical_radius_div_alfven_radius + 1e-3;
             v_prev = self.velocity_profile(x_prev, star);
             v_next = self.velocity_profile(x_next, star);
         } else {
             x_prev = star.radius / star.alfven_radius;
-            x_next = self.critical_radius_div_alfven_radius + 1e-03;
+            x_next = self.critical_radius_div_alfven_radius + 1e-3;
             v_next = self.velocity_profile(x_next, star);
             let radius_over_sonic_point =
                 star.radius / (self.critical_radius_div_alfven_radius * star.alfven_radius);
-            let mut speed_over_sound_speed: f64 = 1e-07;
+            let mut speed_over_sound_speed: f64 = 1e-7;
 
             if radius_over_sonic_point >= 1. {
                 speed_over_sound_speed = 10.;
@@ -438,7 +438,7 @@ impl IsothermalWind {
                     - 4. / radius_over_sonic_point
                     - 4. * ln!(radius_over_sonic_point)
                     + 3.;
-                if abs!(energy_flux_difference) < 1e-07 {
+                if abs!(energy_flux_difference) < 1e-7 {
                     break;
                 }
 
@@ -503,7 +503,7 @@ impl IsothermalWind {
         // The values of alpha, depth1 and depth have been empirically tested.
         let alpha = 0.4;
         let depth1 = -3. * ln!(alpha);
-        let depth = 1E-08;
+        let depth = 1e-8;
         let torque_sign = -tanh!(star.tidal_frequency / depth);
         self.magnetic_torque = torque_sign
             * abs!(

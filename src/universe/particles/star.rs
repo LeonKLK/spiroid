@@ -372,7 +372,7 @@ impl Star {
                     + ((0.5 + 0.2 / mass_ratio) * self.terminal_wind_speed / orbital_velocity)
                         .powi(5)))
             * mass_accretion_efficiency_bhl;
-        min!(mass_accretion_efficiency, 0.3_f64, 1.4 * mass_ratio.powi(2))
+        min!(mass_accretion_efficiency, 1.4 * mass_ratio.powi(2), 0.3)
     }
 
     // Computes the wind orbital angular momentum loss.
@@ -396,11 +396,11 @@ impl Star {
         // Mass aspect ratio
         // Both mass and radius aspect ratio can be zero before the convective core appears on the PMS
         // But it's only a problem if beta is zero (gamma has a 1/beta), so the 1e-20 is there to prevent NaNs
-        let beta = max!(1E-20_f64, self.radiative_mass / self.mass);
+        let beta = max!(self.radiative_mass / self.mass, 1e-20);
         // Gamma parameter from Mathis 2015, Eq.2
         let gamma = max!(
-            1E-20_f64,
-            alpha.powi(3) * (1. - beta) / (beta * (1. - alpha.powi(3)))
+            alpha.powi(3) * (1. - beta) / (beta * (1. - alpha.powi(3))),
+            1e-20
         );
         // Frequency-averaged tidal dissipation (Eq. B3 of Ogilvie 2013, or Eq. 1 of Mathis 2015)
         // but without the Spin^2, which was taken out here and multiplied back in fn tidal_quality
@@ -418,7 +418,7 @@ impl Star {
 
         // 1e-20 is to prevent the dissipation to go to zero.
         // Maybe in case spin = 0.
-        max!(1E-20_f64, dynamical_tide_dissipation)
+        max!(dynamical_tide_dissipation, 1e-20)
     }
 
     // Angular momentum redistribution. See MacGregor & Brenner 1991,  Eq. 1

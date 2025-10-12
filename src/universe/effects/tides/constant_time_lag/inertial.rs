@@ -32,7 +32,7 @@ impl Inertial {
     // Q' = 3 / ( 2 * <D>w' * spin^2 ) | here
     fn tidal_quality_frequency_averaged(star: &Star) -> f64 {
         // Epsilon to ensure a smooth transition equilibrium / dynamical tide
-        let epsilon_step = 1.0E-06;
+        let epsilon_step = 1e-6;
         // dynamical_tide_quality_factors
         3. / (2. * star.dynamical_tide_dissipation * star.spin.powi(2)) * 2.
             / (1. + tanh!((star.tidal_frequency + 2. * star.spin) / epsilon_step))

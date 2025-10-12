@@ -40,7 +40,7 @@ pub fn test_planet_kaula() -> Planet {
     planet.radius_of_gyration_2 = 0.33;
     planet.moment_of_inertia = 5.9e37;
 
-    let spin = 8.0e-7;
+    let spin = 8e-7;
     let eccentricity = 0.005;
     let inclination = 0.35;
     let longitude_ascending_node = 1.0;

@@ -52,7 +52,7 @@ impl Equilibrium {
     // Normalization constant for equilibrium tide (Bolmont & Mathis,  2016,  Eq. 8)
     fn tidal_quality_sigma_bar_star(star: &Star, sigma_bar_star: f64) -> f64 {
         // Epsilon to ensure that equilibrium_tide_quality_factors stays finite
-        let epsilon_secure = 1.0E-10;
+        let epsilon_secure = 1e-10;
 
         let normalisation_constant = sqrt!(GRAVITATIONAL / (SOLAR_MASS * SOLAR_RADIUS.powi(7)));
         // Tidal quality factors for the equilibrium tide
@@ -77,9 +77,9 @@ impl Equilibrium {
     ) -> f64 {
         let f2 = f_prime
             * min!(
-                1_f64,
                 ((2. * PI) / (2. * planet.mean_motion * c_f * star.convective_turnover_time))
-                    .powf(gamma_f)
+                    .powf(gamma_f),
+                1.
             );
         let k2 = 1. / 27. / star.convective_turnover_time
             * (1. - star.radiative_mass / star.mass)
