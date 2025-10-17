@@ -73,7 +73,7 @@ impl LoveNumber {
         self.planet_structure.radius_normalisation = layers[layers.len() - 1].radius; //outermost layer radius
         self.planet_structure.density_normalisation = 3000.0;
         self.planet_structure.velocity_normalisation = 4000.0;
-        self.planet_structure.gravity_factor = 6.67428e-11;
+        self.planet_structure.normalised_gravitational = GRAVITATIONAL; // Will be normalised in lpg-tides
 
         self.planet_structure.layers = layers.to_vec();
         //        self.planet_structure.three_solutions = ThreeSolutions::default();
