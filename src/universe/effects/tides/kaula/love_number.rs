@@ -11,7 +11,9 @@ use std::path::PathBuf;
 use anyhow::Result;
 use serde_big_array::BigArray;
 
-use wtf_tides::{Layer, PlanetStructure, compute_everything};
+use wtf_tides::{Layer, PlanetStructure, compute_everything, RadialProfile};
+
+use num_complex::Complex;
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Default, Clone)]
 pub enum ParticleComposition {
@@ -94,6 +96,8 @@ impl LoveNumber {
 
         self.planet_structure.layers = layers.to_vec();
         //        self.planet_structure.three_solutions = ThreeSolutions::default();
+        self.planet_structure.yc = vec![Complex::<f64>::from(0.0); 18];
+        self.planet_structure.y = vec![RadialProfile::default(); 3];
     }
 
     /// Fetches the real love number from the cache for index of tuple (m, p, q).
@@ -189,10 +193,14 @@ impl LoveNumber {
                         // Add to cache
                         self.set_k2(m, p, q, k2_re, k2_im);
 
+                        if w_2lmpq == 0.0 { continue; };
                         // TODO lpg-tide calculation of real and imaginary part
+//                        println!("starting wtf-tides with freq: {w_2lmpq}");
                         self.planet_structure.tidal_freq = w_2lmpq;
                         wtf_tides::compute_everything(&mut self.planet_structure)?;
+//                        println!("done");
                         let k2_new = self.planet_structure.k2_wtf();
+/*
                         println!(
                             "tidal_freq: {}\nk2_interpolated: {}+{}i\nk2_lpg_realtime: {}+{}i",
                             w_2lmpq,
@@ -201,7 +209,7 @@ impl LoveNumber {
                             k2_new.re,
                             k2_new.im,
                         );
-
+*/
                     }
                 }
             }
