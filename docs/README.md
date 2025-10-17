@@ -15,7 +15,7 @@ The physics has been validated by the following contributors:
 - Stellar evolution and magnetic interaction by [Antoine Strugarek, CEA](https://tonione.github.io/antoinestrugarek.github.io/)
 - Stellar and planetary formulations by [Émeline Bolmont, UniGE](https://www.unige.ch/sciences/astro/exoplanets/en/team/faculty-members/emeline-bolmont/) and [Leon Ka-Wang Kwok, UniGE](https://www.unige.ch/sciences/astro/exoplanets/en/team/scientific-collaborators/kwok-leon/)
 - Tides in Kaula formalism by [Alexandre Revol, UniGE](https://www.unige.ch/sciences/astro/exoplanets/en/team/scientific-collaborators/revol-alexandre/)
-- Post main sequence stellar evolution and stellar winds [Mats Esseldeurs, KU Leuven](https://fys.kuleuven.be/ster/staff/phd-students/mats-esseldeurs)
+- Post main sequence stellar evolution and stellar winds by [Mats Esseldeurs, KU Leuven](https://fys.kuleuven.be/ster/staff/phd-students/mats-esseldeurs)
 
 With all effects enabled, `spiroid` can simulate between `2e6` and `2e7` years per second (i.e. a simulation of `1e7` years completes in 0.5 seconds).
 
@@ -23,6 +23,7 @@ With all effects enabled, `spiroid` can simulate between `2e6` and `2e7` years p
 ### Requirements
 
 - Rust: [see rustup](https://www.rustup.rs/)
+- python3:  [see uv](https://docs.astral.sh/uv/getting-started/installation/) (optional, only for data pre- and post-processing)
 
 Clone the repository, build, and install:
 
@@ -163,9 +164,10 @@ The format of the file must be CSV (Comma Separated Values) with the following h
 Additional fields, only required by MESA data files:
 
 - `convective_turnover_time` (seconds)
-- `core_envelope_coupling_constant` (seconds)
-- `mass_loss_rate ` mass loss rate duing the evolved phase (solar mass / year)
+- `mass_loss_rate ` mass loss rate during the evolved phase (solar mass / year)
 
+A script is included to help clean and convert raw MESA output files to CSV:
+`uv run scripts/convert_mesa_to_csv.py`
 
 ### Magnetism (`Particle`)
 Magnetic interaction (initiated by the star) can be toggled into the following states:
@@ -176,6 +178,9 @@ Magnetic interaction (initiated by the star) can be toggled into the following s
 #### Wind
 Set the `magnetism` property of the `central_body` `Particle` to `Wind`.
 Set the desired values of `magnetic_field` for `Planet` and `Star`.
+
+### Evolved Wind
+When using a `MESA` stellar evolutionary model, the evolved wind is automatically enabled. From the amount of mass that is lost from the stellar wind, the angular momentum of the envelope is reduced, and the semi-major axis of the orbiting body is affected.
 
 ### Tides
 
@@ -188,7 +193,17 @@ Tides for each particle can be toggled independently into the following states:
 > Note: Currently CTL is not implemented for the Planet, and Kaula is not implemented for the Star.
 
 #### Constant Time Lag (star)
-Set the `tides` property of the `central_body` particle to `ConstantTimeLag` and provide the `equilibrium_tide_dissipation` factor. 
+Set the `tides` property of the `central_body` particle to `ConstantTimeLag`. The following header fields specify which tide is active:
+
+- `Equilibrium`
+    Activates the equilibrium tide.
+    * `Disabled` (default)
+    * `SigmaBarStar` Follows the $\bar\sigma_\star$ formalism of [Hansen 2010](https://doi.org/10.1088/0004-637X/723/1/285). Requires a $\bar\sigma_\star$ factor.
+    * `Zahn` Follows the Zahn formalism as parameterised in [Mustill & Villaver 2012](http://doi.org/10.1088/0004-637X/761/2/121). Requires `f_prime` ($f^\prime$), `c_f` ($c_f$) and `gamma_f` ($\gamma_f$) of order unity.
+- `Inertial`
+    Activates the dynamical tide for inertial waves/modes.
+    * `Disabled` (default)
+    * `FrequencyAveraged` Follows the frequency-averaged formalism described in [Mathis 2015](https://doi.org/10.1051/0004-6361/201526472)
 
 #### Kaula tides (planet)
 Set the `tides` property of the `orbiting_body` particle to `KaulaTides`, specify the `particle_type` (e.g. `Solid`) and provide the appropriate love number data file.
@@ -229,6 +244,9 @@ src
 │   ├── effects
 │   │   ├── magnetism.rs
 │   │   ├── tides
+│   │   │   ├── constant_time_lag
+│   │   │   │   ├── equilibrium.rs
+│   │   │   │   └── inertial.rs
 │   │   │   ├── constant_time_lag.rs
 │   │   │   ├── kaula
 │   │   │   │   ├── love_number.rs
@@ -243,7 +261,6 @@ src
 │   │   └── star.rs
 │   └── particles.rs
 ├── universe.rs
-└── utils.rs
 ```
 
 - lib.rs: Specifies the structure of the `Universe` for the config file and implements the `Integrator::System` trait required by the integrator.
@@ -257,7 +274,6 @@ src
 - universe/particles/planet.rs: `Planet` model. 
 - universe/particles/star.rs: `Star` model. 
 - universe/particles/star/star_csv.rs: Structure of the stellar evolution CSV from `STAREVOL` or `MESA` models.
-- utils.rs: Misc helper functions, precomputed factorial, etc.
 
 # Known issues and limitations
 

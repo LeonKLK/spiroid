@@ -27,15 +27,16 @@ def make_planets(planet_base, effects):
     combis = [x for x in itertools.product(*planet_base.values())]
 
     for planet_vals in combis:
-        (mass, radius, semi_major_axis, magnetic_field, is_destroyed) = planet_vals[:5]
+        (mass, radius, semi_major_axis, magnetic_field) = planet_vals[:4]
         body = {}
         planet = {
             "mass": mass,
             "radius": radius,
             "semi_major_axis": semi_major_axis,
-            "magnetic_field": magnetic_field,
-            "is_destroyed": is_destroyed,
         }
+
+        if effects["MAGNETIC_EFFECT_ENABLED"]:
+            planet["magnetic_field"] = magnetic_field
 
         if effects["PLANET_TIDES_ENABLED"]:
             (
@@ -47,7 +48,7 @@ def make_planets(planet_base, effects):
                 spin_inclination,
                 radius_of_gyration,
                 (particle_type, kaula_solid_file),
-            ) = planet_vals[5:]
+            ) = planet_vals[4:]
             planet.update(
                 {
                     "inclination": inclination,
@@ -61,14 +62,11 @@ def make_planets(planet_base, effects):
             )
 
             body["tides"] = {
-                "KaulaTides": {
-                    "kaula": {
-                        "particle_type": {
-                            particle_type: {"solid_file": kaula_solid_file}
-                        },
-                    }
-                }
+                "KaulaTides": {"particle_type": {particle_type: {"solid_file": kaula_solid_file}}}
             }
+
+        if not effects["WIND_ENABLED"]:
+            body["wind"] = "Disabled"
 
         body["kind"] = {"Planet": planet}
         planets.append(body)
@@ -85,30 +83,37 @@ def make_stars(star_base, effects):
             spin,
             core_envelope_coupling_constant,
             footpoint_conductance,
-            star_file_path,
+            evolution,
             sigma_bar,
         ) = star_vals[:6]
 
         body = {}
         star = {
-            "mass": mass,
             "spin": spin,
             "core_envelope_coupling_constant": core_envelope_coupling_constant,
-            "footpoint_conductance": footpoint_conductance,
             "evolution": "Disabled",
         }
 
         if effects["STAR_TIDES_ENABLED"]:
-            body["tides"] = {"ConstantTimeLag": sigma_bar}
-
+            body["tides"] = {
+                "ConstantTimeLag": {
+                    "equilibrium": {"SigmaBarStar": 1e-06},
+                    "inertial": "FrequencyAveraged",
+                }
+            }
         if effects["MAGNETIC_EFFECT_ENABLED"]:
-            body["magnetism"] = {"Wind": {}}
+            body["magnetism"] = {"Wind": {"footpoint_conductance": footpoint_conductance}}
 
         if effects["STAR_EVOLUTION_ENABLED"]:
-            star["evolution"] = {"Interpolated": {"star_file_path": star_file_path}}
+            star["evolution"] = evolution
         else:
+            star["mass"] = mass
             star["radiative_moment_of_inertia"] = star_vals[6]
             star["convective_moment_of_inertia"] = star_vals[7]
+
+        if not effects["WIND_ENABLED"]:
+            body["wind"] = "Disabled"
+
         body["kind"] = {"Star": star}
         stars.append(body)
 
@@ -139,6 +144,7 @@ def generate_all_effect_combinations(input_dict):
         "STAR_EVOLUTION_ENABLED": "star_evolution",
         "STAR_TIDES_ENABLED": "star_ctl_tides",
         "PLANET_TIDES_ENABLED": "planet_kaula_tides",
+        "WIND_ENABLED": "wind",
     }
     # Get keys and values from the input dictionary
     keys = input_dict.keys()

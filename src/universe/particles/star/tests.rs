@@ -1,5 +1,8 @@
 use super::*;
 use crate::universe::effects::magnetism::{IsothermalWind, MagneticModel};
+use crate::universe::effects::tides::ConstantTimeLag;
+use crate::universe::effects::tides::constant_time_lag::Equilibrium;
+use crate::universe::effects::tides::constant_time_lag::Inertial;
 use crate::universe::particles::TidalModel;
 use crate::universe::particles::planet::tests::{test_planet, test_planet_magnetic};
 use crate::universe::tests::{DISK_IS_DISSIPATED, TEST_TIME};
@@ -31,9 +34,8 @@ pub fn test_star() -> Star {
     let mut star = Star::default();
 
     star.mass = 1.5909177014856084e30;
-    star.core_envelope_coupling_constant = 369539496.0e6;
+    star.core_envelope_coupling_constant = 369539496e6;
     // The tolerance is very high: any value in range 4.7e5 to 9.3e5 will pass the existing tests.
-    star.footpoint_conductance = 7.0e4;
     star.radius = 544588072.4685764;
     star.radiative_mass = 1.5048623991131647e30;
     star.convective_radius = 374606632.43479675;
@@ -155,7 +157,9 @@ fn _magnetic_torque_enabled() {
     let mut star = test_star();
     let planet = test_planet_magnetic();
     star.refresh_tidal_frequency(&planet);
-    let mut magnetism = MagneticModel::Wind(IsothermalWind::default());
+    let mut wind = IsothermalWind::default();
+    wind.footpoint_conductance = 7e4;
+    let mut magnetism = MagneticModel::Wind(wind);
 
     let result = magnetism.magnetic_torque(&planet, &star);
     assert_eq!(expected, result);
@@ -193,19 +197,10 @@ fn _tidal_torque_enabled() {
     let mut star = test_star();
     let planet = test_planet();
     star.refresh_tidal_frequency(&planet);
-    let tides = TidalModel::ConstantTimeLag(1e-6);
+    let tides = TidalModel::ConstantTimeLag(ConstantTimeLag {
+        equilibrium: Equilibrium::SigmaBarStar(1e-6),
+        inertial: Inertial::FrequencyAveraged,
+    });
     let result = tides.tidal_torque(&star, &planet);
-    assert_eq!(expected, result);
-}
-
-#[test]
-// This function is only called if tides are enabled.
-fn _tidal_quality() {
-    let equilibrium_tide_dissipation: f64 = 1e-6;
-    let expected = 8678226.112383543;
-    let mut star = test_star();
-    let planet = test_planet();
-    star.refresh_tidal_frequency(&planet);
-    let result = star.tidal_quality(equilibrium_tide_dissipation);
     assert_eq!(expected, result);
 }

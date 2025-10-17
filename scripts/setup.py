@@ -6,6 +6,19 @@ of the values of the star, planet and effects.
 
 """
 
+##############################################################
+########################!!! WARNING !!!#######################
+##############################################################
+"""
+Do _NOT_ change the order of dictionary keys in this file.
+The values are unpacked in an order dependent way in config.py
+to create the initial conditions.
+"""
+##############################################################
+########################!!! WARNING !!!#######################
+##############################################################
+
+
 import sys
 
 sys.dont_write_bytecode = True
@@ -18,13 +31,14 @@ def simulator_setup():
     ####################### SIMULATOR SETUP ######################
     ##############################################################
 
-    # The prefix simulation name.
-    # Produces test_1.json.conf, test_2.json.conf, test_3.json.conf etc.
     simulation = {
+        # The prefix simulation name.
         "name": "test",
-        # Simulation start time, seconds (from years)
+        # Decription of the science case.
+        "decription": "",
+        # Simulation start time, seconds (from years).
         "start_time": SECONDS_IN_YEAR * 1.0e6,
-        # Simulation end time, seconds (from years)
+        # Simulation end time, seconds (from years).
         "final_time": SECONDS_IN_YEAR * 1.0e9,
     }
 
@@ -36,7 +50,7 @@ def simulator_setup():
 
 def effect_setup():
     # Enables or disables certain effects for all simulations.
-    # Must be [True], [False] or [True, False]
+    # Must be [True], [False] or [True, False].
     effects = {
         "MAGNETIC_EFFECT_ENABLED": [True, False],
         "STAR_EVOLUTION_ENABLED": [True, False],
@@ -44,6 +58,8 @@ def effect_setup():
         "STAR_TIDES_ENABLED": [True, False],
         # Kaula planetary tides
         "PLANET_TIDES_ENABLED": [False],
+        # Disable wind for testing conservation of angular momentum
+        "WIND_ENABLED": [True],
     }
 
     return effects
@@ -60,10 +76,12 @@ def planet_setup(effects):
         "radius": [3.255e7],
         # m (from AU)
         "semi_major_axis": [AU * x for x in [0.019]],
-        # Gauss
-        "magnetic_field": [10.0],
-        "is_destroyed": [False],
+        "magnetic_field": [None],  # Do not edit.
     }
+
+    if effects["MAGNETIC_EFFECT_ENABLED"]:
+        # Gauss
+        planet_base["magnetic_field"] = [10.0]
 
     if effects["PLANET_TIDES_ENABLED"]:
         # For Kaula
@@ -100,23 +118,33 @@ def star_setup(effects):
     ####################### STAR SETUP ###########################
     ##############################################################
     star_base = {
-        # kg (from Msun)
-        "mass": [SOLAR_MASS * x for x in [0.8]],
+        "mass": [None],  # Do not edit.
         # rad.s-1
         "spin": [5.194e-05],
         # seconds (from years)
         "core_envelope_coupling_constant": [SECONDS_IN_YEAR * x for x in [1.171e7]],
-        # Ohm-1
-        "footpoint_conductance": [5.8e4],
-        "star_file_path": [None],  # Do not edit.
+        "footpoint_conductance": [None],  # Do not edit.
+        "evolution": [None],  # Do not edit.
         "sigma_bar": [None],  # Do not edit.
     }
 
+    if effects["MAGNETIC_EFFECT_ENABLED"]:
+        # Ohm-1
+        star_base["footpoint_conductance"] = [5.8e4]
+
     if effects["STAR_EVOLUTION_ENABLED"]:
-        star_base["star_file_path"] = ["examples/data/star/evolution/savgol_08.csv"]
+        star_base["evolution"] = [
+            {"Starevol": {"star_file_path": "examples/data/star/evolution/savgol_08.csv"}},
+            {"Starevol": {"star_file_path": "examples/data/star/evolution/savgol_09.csv"}},
+            {"Mesa": {"star_file_path": "examples/data/star/evolution/mesa_10.csv"}},
+        ]
     else:
-        # Set the initial star values that would otherwise be provided by savgol data if evolution were enabled.
+        # Set the initial star values that would otherwise be provided by savgol/mesa data if evolution were enabled.
         # Must be non-zero (to avoid NaN).
+
+        # kg (from Msun)
+        star_base["mass"] = [SOLAR_MASS * x for x in [0.8]]
+
         # No units
         star_base["radiative_moment_of_inertia"] = [1.0]
         star_base["convective_moment_of_inertia"] = [1.0]
@@ -125,7 +153,6 @@ def star_setup(effects):
         star_base["sigma_bar"] = [1.0e-6]
 
     return star_base
-
 
 
 def integrator_setup():
@@ -142,7 +169,7 @@ def integrator_setup():
             "absolute_tolerance": SECONDS_IN_YEAR * 1e6,
             "relative_tolerance": 1.15,
             "incremental_scaling_factor": 0.002,
-            "decremental_scaling_factor": 0.0
+            "decremental_scaling_factor": 0.0,
         }
     }
 
@@ -154,7 +181,6 @@ def integrator_setup():
             "max_integration_steps": 100000000,
             # Uncomment the entire solution_output for Dense output
             "solution_output": filter,
-
         }
     }
 
@@ -191,12 +217,10 @@ def integrator_setup():
     }
 
     # Uncomment only the desired integrator.
-    return odex
-#    return odex_kaula
-#    return dopri853
+    # return odex
+    # return odex_kaula
+    return dopri853
 
 
 if __name__ == "__main__":
-    make_configs(
-        simulator_setup, effect_setup, planet_setup, star_setup, integrator_setup
-    )
+    make_configs(simulator_setup, effect_setup, planet_setup, star_setup, integrator_setup)

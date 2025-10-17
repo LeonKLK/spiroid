@@ -21,6 +21,7 @@ pub struct Planet {
     pub(crate) pericentre_omega: f64,         // rad
     pub(crate) spin_inclination: f64,         // rad
     pub(crate) radius_of_gyration_2: f64,     // ()
+    pub(crate) luminosity: f64,               // W
 
     // Calculated internally
     pub(crate) magnetic_pressure: f64,
@@ -82,7 +83,13 @@ impl ParticleT for Planet {
         self.mean_motion
     }
     fn luminosity(&self) -> f64 {
-        todo!()
+        self.luminosity
+    }
+    fn moment_of_inertia(&self) -> f64 {
+        self.moment_of_inertia
+    }
+    fn reduced_mass(&self) -> f64 {
+        self.reduced_mass
     }
 }
 
@@ -94,8 +101,8 @@ impl Planet {
 
     /// Initialise the units and set initial tidal and magnetic values.
     pub(crate) fn initialise(&mut self) {
-        // 1.0E-4 is a Gauss to Tesla unit conversion, to go back to S.I.
-        self.magnetic_pressure = magnetic_pressure(self.magnetic_field * 1.0E-4);
+        // 1e-4 is a Gauss to Tesla unit conversion, to go back to S.I.
+        self.magnetic_pressure = magnetic_pressure(self.magnetic_field * 1e-4);
         // Only relevant if kaula tides enabled.
         // Hut 1981, text just after Eq. 11
         self.moment_of_inertia = self.radius_of_gyration_2 * self.mass * self.radius.powi(2);
@@ -142,7 +149,7 @@ impl Planet {
     ) {
         // If the planet's spin is close enough to the synchronization state
         // then set the spin equal to the mean motion for numerical stability.
-        if abs!(1. - abs!(spin / self.mean_motion)) < 1.0E-9 {
+        if abs!(1. - abs!(spin / self.mean_motion)) < 1e-9 {
             self.spin = self.mean_motion;
         } else {
             self.spin = spin;
@@ -194,7 +201,7 @@ impl Planet {
         // is not quite the same (2.42 here against 2.44) for the fluid case in Strugarek+14.
         // Antoine: This is a small change in the composition assumed for the planet.
         // We could want to do this more properly and generically.
-        2.42_f64 * star_radius * self.density_ratio.powf(-1. / 3.)
+        2.42 * star_radius * self.density_ratio.powf(-1. / 3.)
     }
 
     // Limit of the orbit as defined in Zhang & Penev 2014.

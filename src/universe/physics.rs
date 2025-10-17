@@ -1,26 +1,31 @@
 use crate::constants::GRAVITATIONAL;
 use crate::universe::effects::tides::TidalModel;
-use crate::universe::{Kaula, ParticleType, Planet, Star, Universe};
+use crate::universe::{Kaula, Particle, ParticleType, Planet, Star};
 use anyhow::{Result, bail};
 
-pub(crate) fn force(dy: &mut [f64], universe: &mut Universe) -> Result<()> {
+pub(crate) fn force(
+    central_body: &Particle,
+    orbiting_body: &Particle,
+    disk_is_dissipated: bool,
+    dy: &mut [f64],
+) -> Result<()> {
     dy.fill(0.0);
 
-    let ParticleType::Star(star) = &mut universe.central_body.kind else {
+    let ParticleType::Star(star) = &central_body.kind else {
         todo!();
     };
 
-    let ParticleType::Planet(planet) = &mut universe.orbiting_body.kind else {
+    let ParticleType::Planet(planet) = &orbiting_body.kind else {
         todo!();
     };
 
     // Star derivatives
     dy[0] = star_radiative_zone_angular_momentum_derivative(star);
-    dy[1] = star_convective_zone_angular_momentum_derivative(star, universe.disk_is_dissipated);
+    dy[1] = star_convective_zone_angular_momentum_derivative(star, disk_is_dissipated);
 
     // If the planet does not exist, only the star derivatives are computed.
     // i.e. during the disk lifetime, or after the planet is destroyed.
-    if !universe.disk_is_dissipated || planet.is_destroyed() {
+    if !disk_is_dissipated || planet.is_destroyed() {
         return Ok(());
     }
 
@@ -29,7 +34,7 @@ pub(crate) fn force(dy: &mut [f64], universe: &mut Universe) -> Result<()> {
     dy[2] = planet_semi_major_axis_13_div_2_derivative(planet, star);
 
     // Immutable borrow of kaula properties if kaula planet tides enabled.
-    if let TidalModel::KaulaTides { ref kaula } = universe.orbiting_body.tides {
+    if let TidalModel::KaulaTides(ref kaula) = orbiting_body.tides {
         // Sum the semi major axis derivative to account for both CTL star tide (if enabled) and Kaula planet tide.
         dy[2] += kaula_planet_semi_major_axis_13_div_2_derivative(planet, star, kaula);
 
@@ -70,7 +75,7 @@ fn star_convective_zone_angular_momentum_derivative(star: &Star, disk_is_dissipa
         // evolved_wind_torque should be zero if not in the post main sequence.
         + star.evolved_wind_torque
         + star.magnetic_torque
-        + star.tidal_torque
+        + star.tidal_torque_convective
 }
 
 // Rate of change in the angular momentum in the radiative zone.
@@ -86,11 +91,14 @@ fn star_radiative_zone_angular_momentum_derivative(star: &Star) -> f64 {
 // This is obtained by moving the 1/a^6 dependency of the tidal torque to the left of Eq. 3, alongside the a^(1/2)
 // this means that what we call here the tidal torque is not exactly the tidal torque, but the tidal torque * a^6
 // or tidal torque without the semi-major axis dependency
+// The last line corresponds to the change in semi-major axis from the mass lost in the evolved phases of evolution.
+// evolved_change_semi_major_axis is da/dt so is multiplied by 13/2 a^{11/2} to represent the derivative of a^{13/2}
 pub(crate) fn planet_semi_major_axis_13_div_2_derivative(planet: &Planet, star: &Star) -> f64 {
     -13. * sqrt!((star.mass + planet.mass) / GRAVITATIONAL)
         * (1. / (star.mass * planet.mass))
         * planet.semi_major_axis.powi(6)
-        * (star.magnetic_torque + star.tidal_torque)
+        * (star.magnetic_torque + star.tidal_torque_convective)
+        + 13. / 2. * planet.semi_major_axis.powf(11. / 2.) * star.evolved_change_semi_major_axis
 }
 
 // Semi-major axis derivative.
@@ -125,7 +133,7 @@ fn planet_eccentricity_derivative(planet: &Planet, star: &Star, kaula: &Kaula) -
             * (planet.radius.powi(5) / planet.semi_major_axis.powf(6.5))
             * (star.mass / planet.mass)
             * planet.semi_minor_axis_ratio
-            * kaula.summation_of_longitudinal_modes_eccentricity(planet.semi_minor_axis_ratio)
+            * kaula.summation_of_longitudinal_modes_eccentricity()
     }
 }
 
@@ -139,7 +147,7 @@ fn planet_inclination_derivative(planet: &Planet, star: &Star, kaula: &Kaula) ->
         (1. / planet.sin_inc)
             * (star.mass / planet.mass)
             * (planet.radius / planet.semi_major_axis).powi(5)
-            * kaula.summation_of_longitudinal_modes_inclination(planet)
+            * kaula.summation_of_longitudinal_modes_inclination()
     }
 }
 

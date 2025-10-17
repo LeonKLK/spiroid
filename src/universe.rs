@@ -21,7 +21,9 @@ pub struct Universe {
     time: f64,
     disk_lifetime: f64,
     #[serde(default)]
-    disk_is_dissipated: bool,
+    pub disk_is_dissipated: bool,
+    #[serde(default)]
+    pub derivatives: Vec<f64>,
     pub orbiting_body: Particle,
     pub central_body: Particle,
 }
@@ -84,7 +86,7 @@ impl Universe {
     }
 
     // Creates a vector of initial quantities to be integrated, depending on the simulation configuration.
-    pub fn integration_quantities(&self) -> Vec<f64> {
+    pub fn integration_quantities(&mut self) -> Vec<f64> {
         let mut vec = vec![];
 
         vec.append(&mut Self::integration_quantities_per_particle(
@@ -94,7 +96,18 @@ impl Universe {
             &self.orbiting_body,
         ));
 
+        // Initialise the empty buffer to hold the derivatives for output.
+        self.derivatives = vec![0.; vec.len()];
+
         vec
+    }
+
+    // Provide values to bound the subsequent step size
+    pub(crate) fn interpolation_step_size_hint(&self, time: f64) -> Option<f64> {
+        let ParticleType::Star(star) = &self.central_body.kind else {
+            unreachable!()
+        };
+        star.stellar_evolution_step_size_hint(time)
     }
 
     fn disk_is_dissipated(&mut self) {
@@ -143,9 +156,10 @@ impl Universe {
         // Recompute star values that depend on planet (tidal and magnetic torque).
         star.refresh_tidal_frequency(planet);
 
-        // Compute the enabled effects (magnetism, stellar tides, planet tides)
+        // Compute the enabled effects dependent on a planet (magnetism, planet tides)
         star.update_tidal_torque(self.central_body.tides.tidal_torque(star, planet));
         star.update_magnetic_torque(self.central_body.magnetism.magnetic_torque(planet, star)); // Requires wind torque to be calculated first.
+        star.update_evolved_change_semi_major_axis(self.central_body.wind.wind_torque(), planet);
 
         if self.orbiting_body.tides.kaula_enabled() {
             //(spin, eccentricity, inclination, longitude_ascending_node, pericentre_omega, spin_inclination)
