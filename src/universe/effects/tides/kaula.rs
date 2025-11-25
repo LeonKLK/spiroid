@@ -7,6 +7,7 @@ mod polynomials;
 
 use love_number::{LoveNumber, ParticleComposition};
 use polynomials::Polynomials;
+use wtf_tides::Layer;
 
 use crate::universe::particles::{ParticleT, Planet};
 use derive_more::Add;
@@ -69,6 +70,19 @@ pub struct Kaula {
 }
 
 impl Kaula {
+    pub fn interpolation_mode(&self) -> bool {
+        match self.particle_type {
+            ParticleComposition::Layered{..} | ParticleComposition::None => false,
+            _ => true,
+        }
+    }
+
+    pub fn internal_structure_file(&self) -> Option<&PathBuf> {
+        match self.particle_type {
+            ParticleComposition::Layered { ref data_file, .. } => Some(data_file),
+            _ => None,
+        }
+    }
     pub fn solid_file(&self) -> Option<&PathBuf> {
         match self.particle_type {
             ParticleComposition::Solid { ref solid_file, .. }
@@ -98,6 +112,11 @@ impl Kaula {
                 ..
             } => Some(solid_files_dir),
             _ => None,
+        }
+    }
+    pub fn initialise_internal_structure(&mut self, layers: &[Layer]) {
+        if let ParticleComposition::Layered{internal_structure, ..} = &mut self.particle_type {
+            internal_structure.layers(layers).init();
         }
     }
 
@@ -233,7 +252,7 @@ impl Kaula {
         // Only recalculate if any of the values used in the computation of k2 changed.
         if self.love_number_recalculation_needed(planet) {
             self.love_number
-                .refresh_cache(time, planet, star, &self.particle_type, mpq)?;
+                .refresh_cache(time, planet, star, &mut self.particle_type, mpq)?;
         }
 
         // Only recalculate if inclination or eccentricity changed.

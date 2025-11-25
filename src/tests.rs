@@ -4,6 +4,7 @@ use pretty_assertions::assert_eq;
 use sci_file::{
     OutputWriter, read_csv_columns_from_file, read_csv_rows_from_file, read_json_from_file,
 };
+use wtf_tides::Layer;
 use simulation::Integrator;
 use simulation::simulation::InputConfig;
 use std::path::Path;
@@ -26,13 +27,26 @@ fn test_simulation(config: impl AsRef<Path>) -> Universe {
 
     // Load love number data from file(s) if kaula tides are enabled.
     if let Some(kaula) = config.system.orbiting_body.tides.kaula_get_mut() {
-        if let Some(solid_file) = kaula.solid_file() {
-            let love_solid = read_csv_columns_from_file::<f64>(solid_file).unwrap();
-            kaula.initialise_love_number_solid(&love_solid);
+        if kaula.interpolation_mode() {
+            if let Some(solid_file) = kaula.solid_file() {
+                // Maps each column of love number data into a vector.
+                let solid_k2_spectrum = read_csv_columns_from_file::<f64>(solid_file).unwrap();
+                kaula.initialise_love_number_solid(&solid_k2_spectrum);
+            }
+            if let Some(ocean_file) = kaula.ocean_file() {
+                let ocean_k2_spectrum = read_csv_columns_from_file::<f64>(ocean_file).unwrap();
+                kaula.initialise_love_number_ocean(&ocean_k2_spectrum);
+            }
+        } else {
+            if let Some(data_file) = kaula.internal_structure_file() {
+                let layers = read_csv_rows_from_file::<Layer>(data_file).unwrap();
+                kaula.initialise_internal_structure(&layers);
+            }
         }
-        if let Some(ocean_file) = kaula.ocean_file() {
-            let love_ocean = read_csv_columns_from_file::<f64>(ocean_file).unwrap();
-            kaula.initialise_love_number_ocean(&love_ocean);
+        if let ParticleType::Star(star) = &config.system.central_body.kind
+            && let ParticleType::Planet(planet) = &config.system.orbiting_body.kind
+        {
+            kaula.initialise_cache(config.initial_time, star, planet).unwrap();
         }
     }
 
@@ -159,6 +173,13 @@ fn example_magnetic_tides() {
 #[test]
 fn example_planet_kaula_solid_tides() {
     let (config, expected) = make_testcase_paths("planet_kaula_solid_tides");
+    let result = test_simulation(&config);
+    compare_or_create(&expected, &result);
+}
+
+#[test]
+fn example_planet_kaula_live_tides() {
+    let (config, expected) = make_testcase_paths("planet_kaula_live_tides");
     let result = test_simulation(&config);
     compare_or_create(&expected, &result);
 }

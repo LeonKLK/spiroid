@@ -2,7 +2,7 @@ use anyhow::Result;
 use rayon::prelude::*;
 use sci_file::{read_csv_columns_from_file, read_csv_rows_from_dir, read_csv_rows_from_file};
 use spiroid_lib::{ParticleType, Simulation, StarCsv, Universe};
-
+use wtf_tides::Layer;
 fn main() -> Result<()> {
     let simulations = Simulation::<Universe>::new()?;
     simulations
@@ -25,21 +25,27 @@ fn main() -> Result<()> {
 
             // Load love number data from file(s) if kaula tides are enabled.
             if let Some(kaula) = simulation.system.orbiting_body.tides.kaula_get_mut() {
-                if let Some(solid_file) = kaula.solid_file() {
-                    // Maps each column of love number data into a vector.
-                    let solid_k2_spectrum = read_csv_columns_from_file::<f64>(solid_file)?;
-                    kaula.initialise_love_number_solid(&solid_k2_spectrum);
+                if kaula.interpolation_mode() {
+                    if let Some(solid_file) = kaula.solid_file() {
+                        // Maps each column of love number data into a vector.
+                        let solid_k2_spectrum = read_csv_columns_from_file::<f64>(solid_file)?;
+                        kaula.initialise_love_number_solid(&solid_k2_spectrum);
+                    }
+                    if let Some(ocean_file) = kaula.ocean_file() {
+                        let ocean_k2_spectrum = read_csv_columns_from_file::<f64>(ocean_file)?;
+                        kaula.initialise_love_number_ocean(&ocean_k2_spectrum);
+                    }
+                    if let Some(interpolate_dir) = kaula.interpolate_dir() {
+                        let _interpolation_2d_k2_spectrum =
+                            read_csv_rows_from_dir::<f64>(interpolate_dir)?;
+                        todo!();
+                    }
+                } else {
+                    if let Some(data_file) = kaula.internal_structure_file() {
+                        let layers = read_csv_rows_from_file::<Layer>(data_file)?;
+                        kaula.initialise_internal_structure(&layers);
+                    }
                 }
-                if let Some(ocean_file) = kaula.ocean_file() {
-                    let ocean_k2_spectrum = read_csv_columns_from_file::<f64>(ocean_file)?;
-                    kaula.initialise_love_number_ocean(&ocean_k2_spectrum);
-                }
-                if let Some(interpolate_dir) = kaula.interpolate_dir() {
-                    let _interpolation_2d_k2_spectrum =
-                        read_csv_rows_from_dir::<f64>(interpolate_dir)?;
-                    todo!();
-                }
-
                 if let ParticleType::Star(star) = &simulation.system.central_body.kind
                     && let ParticleType::Planet(planet) = &simulation.system.orbiting_body.kind
                 {

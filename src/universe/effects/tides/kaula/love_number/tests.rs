@@ -101,14 +101,14 @@ fn _solid() {
     let mut planet = test_planet_kaula();
     planet.spin = 0.1;
     let star = test_star();
-    let particle_type = ParticleComposition::Solid {
+    let mut particle_type = ParticleComposition::Solid {
         solid_file: "dummy".into(),
         solid_k2: test_k2_interpolator(),
     };
 
     let expected = love_number.clone();
     let mpq = test_mpq();
-    let _ = love_number.refresh_cache(TEST_TIME, &planet, &star, &particle_type, mpq);
+    let _ = love_number.refresh_cache(TEST_TIME, &planet, &star, &mut particle_type, mpq);
 
     assert_eq!(expected, love_number);
 }

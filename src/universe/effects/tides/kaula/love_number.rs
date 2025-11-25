@@ -4,6 +4,7 @@ use crate::constants::{
 use crate::universe::effects::tides::kaula::Mpq;
 use crate::universe::particles::ParticleT;
 use sci_file::Interpolator;
+use wtf_tides::InternalStructure;
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -15,6 +16,13 @@ use num_complex::{Complex, c64};
 pub enum ParticleComposition {
     #[default]
     None,
+    Layered {
+        data_file: PathBuf,
+        default_k2_re: f64,
+        default_k2_im: f64,
+        #[serde(default)]
+        internal_structure: InternalStructure,
+    },
     Solid {
         solid_file: PathBuf,
         #[serde(skip)]
@@ -148,7 +156,7 @@ impl LoveNumber {
         time: f64,
         planet: &impl ParticleT,
         star: &impl ParticleT,
-        particle_type: &ParticleComposition,
+        particle_type: &mut ParticleComposition,
         mpq: Mpq,
     ) -> Result<()> {
         let mut k2;
@@ -171,10 +179,14 @@ impl LoveNumber {
                         k2 = Self::compute_k2(time, w_2lmpq, planet, star, particle_type)?;
                         // Add to cache
                         self.set_k2(m, p, q, k2);
+//                        println!("freq: {w_2lmpq}");
+//                        println!("k2_re: {}", k2.re);
+//                        println!("k2_im: {}", k2.im);
                     }
                 }
             }
         }
+//        panic!();
         Ok(())
     }
 
@@ -194,11 +206,20 @@ impl LoveNumber {
         tidal_frequency: f64,
         planet: &impl ParticleT,
         star: &impl ParticleT,
-        particle_type: &ParticleComposition,
+        particle_type: &mut ParticleComposition,
     ) -> Result<Complex<f64>> {
         match particle_type {
             ParticleComposition::None => {
                 unreachable!();
+            }
+            ParticleComposition::Layered{ internal_structure, default_k2_re, default_k2_im, .. } => {
+                if tidal_frequency == 0.0 {
+                    Ok(c64(-*default_k2_re, *default_k2_im))
+                } else {
+                    internal_structure.refresh(tidal_frequency)?;
+                    let k2 = internal_structure.k2_complex();
+                    Ok(c64(-k2.re, k2.im))
+                }
             }
             ParticleComposition::Solid { solid_k2, .. } => {
                 Self::interpolate_k2_by_tidal_frequency(solid_k2, tidal_frequency)
