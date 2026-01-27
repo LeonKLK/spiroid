@@ -4,10 +4,10 @@ use pretty_assertions::assert_eq;
 use sci_file::{
     OutputWriter, read_csv_columns_from_file, read_csv_rows_from_file, read_json_from_file,
 };
-use wtf_tides::Layer;
 use simulation::Integrator;
 use simulation::simulation::InputConfig;
 use std::path::Path;
+use wtf_tides::Layer;
 
 fn test_simulation(config: impl AsRef<Path>) -> Universe {
     // Parse the config file.
@@ -21,7 +21,8 @@ fn test_simulation(config: impl AsRef<Path>) -> Universe {
             // Configure the stellar evolution interpolator.
             StarCsv::initialise(&mut stellar_data);
             let star_ages = StarCsv::ages(&stellar_data);
-            star.initialise_evolution(&star_ages, &stellar_data);
+            star.initialise_evolution(&star_ages, &stellar_data)
+                .unwrap();
         }
     }
 
@@ -31,11 +32,15 @@ fn test_simulation(config: impl AsRef<Path>) -> Universe {
             if let Some(solid_file) = kaula.solid_file() {
                 // Maps each column of love number data into a vector.
                 let solid_k2_spectrum = read_csv_columns_from_file::<f64>(solid_file).unwrap();
-                kaula.initialise_love_number_solid(&solid_k2_spectrum);
+                kaula
+                    .initialise_love_number_solid(&solid_k2_spectrum)
+                    .unwrap();
             }
             if let Some(ocean_file) = kaula.ocean_file() {
                 let ocean_k2_spectrum = read_csv_columns_from_file::<f64>(ocean_file).unwrap();
-                kaula.initialise_love_number_ocean(&ocean_k2_spectrum);
+                kaula
+                    .initialise_love_number_ocean(&ocean_k2_spectrum)
+                    .unwrap();
             }
         } else {
             if let Some(data_file) = kaula.internal_structure_file() {
@@ -46,7 +51,9 @@ fn test_simulation(config: impl AsRef<Path>) -> Universe {
         if let ParticleType::Star(star) = &config.system.central_body.kind
             && let ParticleType::Planet(planet) = &config.system.orbiting_body.kind
         {
-            kaula.initialise_cache(config.initial_time, star, planet).unwrap();
+            kaula
+                .initialise_cache(config.initial_time, star, planet)
+                .unwrap();
         }
     }
 

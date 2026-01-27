@@ -3,7 +3,7 @@ use crate::constants::{
 };
 use crate::universe::effects::tides::kaula::Mpq;
 use crate::universe::particles::ParticleT;
-use sci_file::Interpolator;
+use sci_file::Interpolator1D;
 use wtf_tides::InternalStructure;
 
 use serde::{Deserialize, Serialize};
@@ -26,47 +26,47 @@ pub enum ParticleComposition {
     Solid {
         solid_file: PathBuf,
         #[serde(skip)]
-        solid_k2: Interpolator<Complex<f64>>,
+        solid_k2: Interpolator1D<Complex<f64>>,
     },
     SolidAtmosphere {
         solid_file: PathBuf,
         #[serde(skip)]
-        solid_k2: Interpolator<Complex<f64>>,
+        solid_k2: Interpolator1D<Complex<f64>>,
         thermal_tide_model: ThermalTideModel,
         #[serde(skip)]
-        imaginary_atmosphere: Interpolator<Complex<f64>>,
+        imaginary_atmosphere: Interpolator1D<Complex<f64>>,
     },
     SolidOcean {
         solid_file: PathBuf,
         #[serde(skip)]
-        solid_k2: Interpolator<Complex<f64>>,
+        solid_k2: Interpolator1D<Complex<f64>>,
         ocean_file: PathBuf,
         #[serde(skip)]
-        ocean_k2: Interpolator<Complex<f64>>,
+        ocean_k2: Interpolator1D<Complex<f64>>,
     },
     SolidAtmosphereOcean {
         solid_file: PathBuf,
         #[serde(skip)]
-        solid_k2: Interpolator<Complex<f64>>,
+        solid_k2: Interpolator1D<Complex<f64>>,
         ocean_file: PathBuf,
         #[serde(skip)]
-        ocean_k2: Interpolator<Complex<f64>>,
+        ocean_k2: Interpolator1D<Complex<f64>>,
         thermal_tide_model: ThermalTideModel,
         #[serde(skip)]
-        imaginary_atmosphere: Interpolator<Complex<f64>>,
+        imaginary_atmosphere: Interpolator1D<Complex<f64>>,
     },
     TemporalSolid {
         solid_files_dir: PathBuf,
         #[serde(skip)]
-        solid_by_time: Vec<Interpolator<Complex<f64>>>,
+        solid_by_time: Vec<Interpolator1D<Complex<f64>>>,
     },
     TemporalSolidAtmosphere {
         solid_files_dir: PathBuf,
         #[serde(skip)]
-        solid_by_time: Vec<Interpolator<Complex<f64>>>,
+        solid_by_time: Vec<Interpolator1D<Complex<f64>>>,
         thermal_tide_model: ThermalTideModel,
         #[serde(skip)]
-        imaginary_atmosphere: Interpolator<Complex<f64>>,
+        imaginary_atmosphere: Interpolator1D<Complex<f64>>,
     },
 }
 
@@ -179,22 +179,22 @@ impl LoveNumber {
                         k2 = Self::compute_k2(time, w_2lmpq, planet, star, particle_type)?;
                         // Add to cache
                         self.set_k2(m, p, q, k2);
-//                        println!("freq: {w_2lmpq}");
-//                        println!("k2_re: {}", k2.re);
-//                        println!("k2_im: {}", k2.im);
+                        //                        println!("freq: {w_2lmpq}");
+                        //                        println!("k2_re: {}", k2.re);
+                        //                        println!("k2_im: {}", k2.im);
                     }
                 }
             }
         }
-//        panic!();
+        //        panic!();
         Ok(())
     }
 
     fn interpolate_k2_by_tidal_frequency(
-        interpolator: &Interpolator<Complex<f64>>,
+        interpolator: &Interpolator1D<Complex<f64>>,
         tidal_frequency: f64,
     ) -> Result<Complex<f64>> {
-        let (_, k2) = interpolator.interpolate(abs!(tidal_frequency))?;
+        let k2 = interpolator.interpolate(abs!(tidal_frequency))?;
         // Real part of love number is always negative.
         // Imaginary part of love number is sign dependent on the freqency.
         Ok(c64(-k2.re, tidal_frequency.signum() * k2.im))
@@ -212,7 +212,12 @@ impl LoveNumber {
             ParticleComposition::None => {
                 unreachable!();
             }
-            ParticleComposition::Layered{ internal_structure, default_k2_re, default_k2_im, .. } => {
+            ParticleComposition::Layered {
+                internal_structure,
+                default_k2_re,
+                default_k2_im,
+                ..
+            } => {
                 if tidal_frequency == 0.0 {
                     Ok(c64(-*default_k2_re, *default_k2_im))
                 } else {
@@ -276,7 +281,7 @@ impl LoveNumber {
     // e.g. time ~= 1.0 gigayears: (1 - 1) * 10 == 0, so vec[0] contains relevant data
     // e.g. time ~= 3.5 gigayears: (3.5 - 1) * 10 == 25, so vec[25] contains relevant data.
     fn interpolate_k2_by_time_and_tidal_frequency(
-        interpolators: &[Interpolator<Complex<f64>>],
+        interpolators: &[Interpolator1D<Complex<f64>>],
         time: f64,
         tidal_frequency: f64,
     ) -> Result<Complex<f64>> {
@@ -288,7 +293,7 @@ impl LoveNumber {
         if tidal_frequency == 0.0 {
             Ok(c64(0.0, 0.0))
         } else {
-            let (_, k2) = solid_by_time.interpolate(abs!(tidal_frequency))?;
+            let k2 = solid_by_time.interpolate(abs!(tidal_frequency))?;
             Ok(c64(-k2.re, tidal_frequency.signum() * k2.im))
         }
     }

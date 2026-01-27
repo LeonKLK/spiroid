@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 pub use star_csv::StarCsv;
 use std::path::PathBuf;
 
-use anyhow::Result;
-use sci_file::Interpolator;
+use anyhow::{Error, Result};
+use sci_file::Interpolator1D;
 
 #[derive(Deserialize, Serialize, PartialEq, Clone, Default)]
 enum Evolution {
@@ -18,12 +18,12 @@ enum Evolution {
     Starevol {
         star_file_path: PathBuf,
         #[serde(skip)]
-        interpolator: Interpolator<StarCsv>,
+        interpolator: Interpolator1D<StarCsv>,
     },
     Mesa {
         star_file_path: PathBuf,
         #[serde(skip)]
-        interpolator: Interpolator<StarCsv>,
+        interpolator: Interpolator1D<StarCsv>,
     },
 }
 
@@ -143,7 +143,11 @@ impl Star {
     }
 
     // Initialise stellar values from the stellar evolution file if evolution is interpolated.
-    pub fn initialise_evolution(&mut self, star_ages: &[f64], star_values: &[StarCsv]) {
+    pub fn initialise_evolution(
+        &mut self,
+        star_ages: &[f64],
+        star_values: &[StarCsv],
+    ) -> Result<(), Error> {
         match self.evolution {
             Evolution::Disabled => {}
             Evolution::Starevol {
@@ -154,9 +158,10 @@ impl Star {
                 ref mut interpolator,
                 ..
             } => {
-                interpolator.init(star_ages, star_values);
+                interpolator.init(star_ages, star_values)?;
             }
         }
+        Ok(())
     }
 
     // Provide a reference to the stellar evolution file if evolution is interpolated.
@@ -182,9 +187,9 @@ impl Star {
             | Evolution::Starevol {
                 ref interpolator, ..
             } => {
-                let (age, new) = interpolator.interpolate(time)?;
+                let new = interpolator.interpolate(time)?;
                 // Update the star properties with the new values from the interpolation.
-                self.age = age;
+                self.age = time;
                 self.radius = new.radius;
                 self.mass = new.mass;
                 self.convective_radius = new.convective_radius;

@@ -13,7 +13,7 @@ use sci_file::read_csv_rows_from_file;
 fn add_interpolate_to_test_star(star: &mut Star) {
     star.evolution = Evolution::Starevol {
         star_file_path: "examples/data/star/evolution/savgol_08.csv".into(),
-        interpolator: Interpolator::new(),
+        interpolator: Interpolator1D::new(),
     };
     // Load stellar evolution data from file.
     if let Some(star_file_path) = star.evolution_file() {
@@ -21,7 +21,8 @@ fn add_interpolate_to_test_star(star: &mut Star) {
         // Configure the stellar evolution interpolator.
         StarCsv::initialise(&mut stellar_data);
         let star_ages = StarCsv::ages(&stellar_data);
-        star.initialise_evolution(&star_ages, &stellar_data);
+        star.initialise_evolution(&star_ages, &stellar_data)
+            .unwrap();
     }
 }
 

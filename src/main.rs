@@ -19,7 +19,7 @@ fn main() -> Result<()> {
                     // Configure the stellar evolution interpolator.
                     StarCsv::initialise(&mut stellar_data);
                     let star_ages = StarCsv::ages(&stellar_data);
-                    star.initialise_evolution(&star_ages, &stellar_data);
+                    star.initialise_evolution(&star_ages, &stellar_data)?;
                 }
             }
 
@@ -29,23 +29,22 @@ fn main() -> Result<()> {
                     if let Some(solid_file) = kaula.solid_file() {
                         // Maps each column of love number data into a vector.
                         let solid_k2_spectrum = read_csv_columns_from_file::<f64>(solid_file)?;
-                        kaula.initialise_love_number_solid(&solid_k2_spectrum);
+                        kaula.initialise_love_number_solid(&solid_k2_spectrum)?;
                     }
                     if let Some(ocean_file) = kaula.ocean_file() {
                         let ocean_k2_spectrum = read_csv_columns_from_file::<f64>(ocean_file)?;
-                        kaula.initialise_love_number_ocean(&ocean_k2_spectrum);
+                        kaula.initialise_love_number_ocean(&ocean_k2_spectrum)?;
                     }
                     if let Some(interpolate_dir) = kaula.interpolate_dir() {
                         let _interpolation_2d_k2_spectrum =
                             read_csv_rows_from_dir::<f64>(interpolate_dir)?;
                         todo!();
                     }
-                } else {
-                    if let Some(data_file) = kaula.internal_structure_file() {
-                        let layers = read_csv_rows_from_file::<Layer>(data_file)?;
-                        kaula.initialise_internal_structure(&layers);
-                    }
+                } else if let Some(data_file) = kaula.internal_structure_file() {
+                    let layers = read_csv_rows_from_file::<Layer>(data_file)?;
+                    kaula.initialise_internal_structure(&layers);
                 }
+
                 if let ParticleType::Star(star) = &simulation.system.central_body.kind
                     && let ParticleType::Planet(planet) = &simulation.system.orbiting_body.kind
                 {

@@ -73,24 +73,26 @@ pub fn test_love_number() -> LoveNumber {
     love_number
 }
 
-pub fn test_k2_interpolator() -> Interpolator<Complex<f64>> {
-    let mut interpolator = Interpolator::<Complex<f64>>::new();
-    interpolator.init(
-        &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
-        &[
-            c64(0.0, 0.0),
-            c64(2., -2.),
-            c64(4., -4.),
-            c64(6., -6.),
-            c64(8., -8.),
-            c64(10., -10.),
-            c64(12., -12.),
-            c64(14., -14.),
-            c64(16., -16.),
-            c64(18., -18.),
-            c64(20., -20.),
-        ],
-    );
+pub fn test_k2_interpolator() -> Interpolator1D<Complex<f64>> {
+    let mut interpolator = Interpolator1D::<Complex<f64>>::new();
+    interpolator
+        .init(
+            &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
+            &[
+                c64(0.0, 0.0),
+                c64(2., -2.),
+                c64(4., -4.),
+                c64(6., -6.),
+                c64(8., -8.),
+                c64(10., -10.),
+                c64(12., -12.),
+                c64(14., -14.),
+                c64(16., -16.),
+                c64(18., -18.),
+                c64(20., -20.),
+            ],
+        )
+        .unwrap();
 
     interpolator
 }

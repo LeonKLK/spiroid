@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Error, Result};
 use num_complex::{Complex, c64};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -72,7 +72,7 @@ pub struct Kaula {
 impl Kaula {
     pub fn interpolation_mode(&self) -> bool {
         match self.particle_type {
-            ParticleComposition::Layered{..} | ParticleComposition::None => false,
+            ParticleComposition::Layered { .. } | ParticleComposition::None => false,
             _ => true,
         }
     }
@@ -115,12 +115,15 @@ impl Kaula {
         }
     }
     pub fn initialise_internal_structure(&mut self, layers: &[Layer]) {
-        if let ParticleComposition::Layered{internal_structure, ..} = &mut self.particle_type {
+        if let ParticleComposition::Layered {
+            internal_structure, ..
+        } = &mut self.particle_type
+        {
             internal_structure.layers(layers).init();
         }
     }
 
-    pub fn initialise_love_number_solid(&mut self, love_solid: &[Vec<f64>]) {
+    pub fn initialise_love_number_solid(&mut self, love_solid: &[Vec<f64>]) -> Result<(), Error> {
         match self.particle_type {
             ParticleComposition::Solid {
                 ref mut solid_k2, ..
@@ -138,13 +141,14 @@ impl Kaula {
                     .zip(love_solid[2].iter())
                     .map(|(im, re)| c64(*re, *im))
                     .collect::<Vec<Complex<f64>>>();
-                solid_k2.init(&love_solid[0], &love_numbers);
+                solid_k2.init(&love_solid[0], &love_numbers)?;
             }
             _ => unreachable!(),
         }
+        Ok(())
     }
 
-    pub fn initialise_love_number_ocean(&mut self, love_ocean: &[Vec<f64>]) {
+    pub fn initialise_love_number_ocean(&mut self, love_ocean: &[Vec<f64>]) -> Result<(), Error> {
         match self.particle_type {
             ParticleComposition::SolidOcean {
                 ref mut ocean_k2, ..
@@ -160,10 +164,11 @@ impl Kaula {
                     .map(|(im, re)| c64(*re, *im))
                     .collect::<Vec<Complex<f64>>>();
 
-                ocean_k2.init(&love_ocean[0], &love_numbers);
+                ocean_k2.init(&love_ocean[0], &love_numbers)?;
             }
             _ => unreachable!(),
         }
+        Ok(())
     }
 
     pub fn initialise_cache(
