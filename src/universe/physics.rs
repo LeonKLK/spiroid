@@ -31,25 +31,38 @@ pub(crate) fn force(
         return Ok(());
     }
 
-    // Constant time lag semi major axis derivative.
-    // Is 0 if tides are disabled on the star.
-    dy.orbiting_body.semi_major_axis = planet_semi_major_axis_13_div_2_derivative(planet, star);
+    // Star tidal contributions — dispatch on the star's chosen tidal model.
+    // Each branch is responsible for including non-tidal contributions (magnetic, evolved mass loss)
+    // to preserve floating-point order and keep golden file outputs stable.
+    match &central_body.tides {
+        TidalModel::Disabled => {
+            dy.orbiting_body.semi_major_axis +=
+                planet_semi_major_axis_13_div_2_non_tidal(planet, star);
+        }
+        TidalModel::ConstantTimeLag(_) => {
+            dy.orbiting_body.semi_major_axis +=
+                planet_semi_major_axis_13_div_2_derivative(planet, star);
+        }
+        TidalModel::KaulaTides(_) => todo!("star Kaula tides"),
+    }
 
-    // Immutable borrow of kaula properties if kaula planet tides enabled.
-    if let TidalModel::KaulaTides(ref kaula) = orbiting_body.tides {
-        // Sum the semi major axis derivative to account for both CTL star tide (if enabled) and Kaula planet tide.
-        dy.orbiting_body.semi_major_axis +=
-            kaula_planet_semi_major_axis_13_div_2_derivative(planet, star, kaula);
-
-        dy.orbiting_body.spin = planet_spin_derivative(planet, star, kaula);
-        dy.orbiting_body.eccentricity = planet_eccentricity_derivative(planet, star, kaula);
-        dy.orbiting_body.inclination = planet_inclination_derivative(planet, star, kaula);
-        dy.orbiting_body.longitude_ascending_node =
-            planet_longitude_ascending_node_derivative(planet, star, kaula);
-        dy.orbiting_body.pericentre_omega =
-            planet_argument_pericentre_derivative(planet, star, kaula);
-        dy.orbiting_body.spin_inclination =
-            planet_spin_axis_inclination_derivative(planet, star, kaula);
+    // Planet tidal contributions — dispatch on the planet's chosen tidal model.
+    match &orbiting_body.tides {
+        TidalModel::Disabled => {}
+        TidalModel::ConstantTimeLag(_) => todo!("planet CTL tides"),
+        TidalModel::KaulaTides(kaula) => {
+            dy.orbiting_body.semi_major_axis +=
+                kaula_planet_semi_major_axis_13_div_2_derivative(planet, star, kaula);
+            dy.orbiting_body.spin = planet_spin_derivative(planet, star, kaula);
+            dy.orbiting_body.eccentricity = planet_eccentricity_derivative(planet, star, kaula);
+            dy.orbiting_body.inclination = planet_inclination_derivative(planet, star, kaula);
+            dy.orbiting_body.longitude_ascending_node =
+                planet_longitude_ascending_node_derivative(planet, star, kaula);
+            dy.orbiting_body.pericentre_omega =
+                planet_argument_pericentre_derivative(planet, star, kaula);
+            dy.orbiting_body.spin_inclination =
+                planet_spin_axis_inclination_derivative(planet, star, kaula);
+        }
     }
 
     // Check the derivatives for numerical errors.
@@ -90,14 +103,23 @@ fn star_radiative_zone_angular_momentum_derivative(star: &Star) -> f64 {
         + star.mass_transfer_envelope_to_core_torque
 }
 
-// This loosely comes from Eq. 1 from Ahuir et al. 2021 (for the sum of tidal and magnetic components)
-// Also Benbakoura et al. 2019, Eq. 3.
-// It is the derivative of semi major axis (a) to the power 13/2
-// This is obtained by moving the 1/a^6 dependency of the tidal torque to the left of Eq. 3, alongside the a^(1/2)
-// this means that what we call here the tidal torque is not exactly the tidal torque, but the tidal torque * a^6
-// or tidal torque without the semi-major axis dependency
-// The last line corresponds to the change in semi-major axis from the mass lost in the evolved phases of evolution.
-// evolved_change_semi_major_axis is da/dt so is multiplied by 13/2 a^{11/2} to represent the derivative of a^{13/2}
+// Non-tidal orbital contributions (magnetic torque + evolved mass loss) with no stellar tide.
+// Used when the star's tidal model is Disabled.
+// Ahuir et al. 2021, Eq. 1 (magnetic component) and mass-loss term.
+// evolved_change_semi_major_axis is da/dt, multiplied by 13/2 a^{11/2} to get d(a^{13/2})/dt.
+fn planet_semi_major_axis_13_div_2_non_tidal(planet: &Planet, star: &Star) -> f64 {
+    -13. * sqrt!((star.mass + planet.mass) / GRAVITATIONAL)
+        * (1. / (star.mass * planet.mass))
+        * planet.semi_major_axis.powi(6)
+        * star.magnetic_torque
+        + 13. / 2. * planet.semi_major_axis.powf(11. / 2.) * star.evolved_change_semi_major_axis
+}
+
+// CTL stellar tide + non-tidal contributions combined into a single expression.
+// Preserving the combined form keeps floating-point order identical to the original.
+// Ahuir et al. 2021, Eq. 1; Benbakoura et al. 2019, Eq. 3.
+// The a^{-6} dependency of the tidal torque is moved to the left alongside a^{1/2},
+// so tidal_torque_convective here excludes the semi-major axis dependency.
 pub(crate) fn planet_semi_major_axis_13_div_2_derivative(planet: &Planet, star: &Star) -> f64 {
     -13. * sqrt!((star.mass + planet.mass) / GRAVITATIONAL)
         * (1. / (star.mass * planet.mass))
