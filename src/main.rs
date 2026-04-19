@@ -25,6 +25,26 @@ fn main() -> Result<()> {
                 }
             }
 
+            // Load stellar convective love number data if star kaula tides are enabled.
+            if let Some(kaula) = simulation.system.central_body.tides.kaula_get_mut() {
+                if kaula.interpolation_mode() {
+                    if let Some((stellar_convective_file, stellar_convective_k2)) =
+                        kaula.stellar_convective_file()
+                    {
+                        *stellar_convective_k2 = read_json_from_file(stellar_convective_file)?;
+                        stellar_convective_k2.dimension_check()?;
+                    }
+                }
+                if let ParticleType::Star(star) = &mut simulation.system.central_body.kind
+                    && let ParticleType::Planet(planet) = &simulation.system.orbiting_body.kind
+                {
+                    star.update_kaula_orbital_state(planet);
+                    // Star is the deformed body: pass (planet, star) so initialise_cache
+                    // forwards star as the deformed body to refresh.
+                    kaula.initialise_cache(simulation.initial_time, planet, star)?;
+                }
+            }
+
             // Load love number data from file(s) if kaula tides are enabled.
             if let Some(kaula) = simulation.system.orbiting_body.tides.kaula_get_mut() {
                 if kaula.interpolation_mode() {

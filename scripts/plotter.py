@@ -25,6 +25,7 @@ mytitle-speed-logscale.png
 
 """
 
+import math
 import sys
 
 sys.dont_write_bytecode = True
@@ -51,6 +52,9 @@ from units import (
     convert_units,
     get_units_label,
     filter_keys,
+    AU,
+    GRAVITATIONAL,
+    SOLAR_MASS,
 )
 
 
@@ -140,10 +144,10 @@ def create_plot(title, x_label, y_label, subplots, logscale=False):
         (name, x, y) = data
         plt.plot(x, y, "", label=name, color=colors.pop(), alpha=0.5)
 
-    # Convert to logscale if required.
+    # Time axis is always log-scaled; y-axis only when requested.
+    plt.xscale("log")
     if logscale:
         plt.yscale("log")
-        plt.xscale("log")
 
     # Set the title of the plot.
     plt.title(title)
@@ -221,6 +225,27 @@ def main():
     #   ...
     # }
     all_data = {file: parse_values(file) for file in all_files}
+
+    SECONDS_IN_DAY = 86400.0
+
+    # Compute derived quantities from star_spin (rad/s) if available.
+    for data in all_data.values():
+        if "star_spin" in data:
+            data["star_rotation_period_days"] = [
+                2 * math.pi / (omega * SECONDS_IN_DAY) if omega else float("nan")
+                for omega in data["star_spin"]
+            ]
+
+    # Compute corotation radius (AU) from star mass and spin if available.
+    # star_mass is in Msun (converted by units.py); star_spin is in rad/s.
+    for data in all_data.values():
+        if "star_mass" in data and "star_spin" in data:
+            data["planet_corotation_radius"] = [
+                (GRAVITATIONAL * m * SOLAR_MASS / omega ** 2) ** (1 / 3) / AU
+                if omega else float("nan")
+                for m, omega in zip(data["star_mass"], data["star_spin"])
+            ]
+
     x_label = "time"
     if output_path:
         # Create plots for each quantitiy, containing data from all data files.
@@ -246,8 +271,8 @@ def main():
             all_keys = filter_keys(all_keys)
             # Create a merged plot for all grouped quantities for each data file.
             for y_label, key_set in partition_keys(all_keys).items():
-                if len(key_set) == 1:
-                    continue
+                # if len(key_set) == 1:
+                #     continue
                 print(f"Making graph: {y_label}")
                 subplots = create_subplots(x_label, key_set, data)
                 create_plots(x_label, y_label, subplots, output_path)

@@ -31,6 +31,15 @@ pub enum ParticleComposition {
         #[serde(skip)]
         liquid_k2: DataStore<Complex<f64>>,
     },
+    StellarConvective {
+        stellar_convective_file: PathBuf,
+        #[serde(skip)]
+        stellar_convective_k2: DataStore<Complex<f64>>,
+        // Reference spin rate at which the love number spectrum was computed (rad/s).
+        // When set, the tidal frequency is rescaled to the reference frame before lookup,
+        // and the imaginary part is rescaled back afterward.
+        stellar_spectrum_spin_rate: Option<f64>,
+    },
 }
 
 // Real and imaginary love numbers calculated each timestep.
@@ -167,6 +176,36 @@ impl LoveNumber {
         thermal_tide_model: &ThermalTideAtmosphereModel,
     ) -> Result<Complex<f64>> {
         // Depending on inteprolation table, a 1D (tidal_frequency) or 2D (tidal_frequency, time) interpolator is used.
+
+        // Stellar convective zone: table covers the full signed frequency range [-max, +max].
+        // Sign is already encoded in the imaginary part — no abs, no signum correction needed.
+        // Clamp to the table boundary when the tidal frequency exceeds the data range.
+        if let ParticleComposition::StellarConvective {
+            stellar_convective_k2,
+            stellar_spectrum_spin_rate,
+            ..
+        } = particle_type
+        {
+            let spin_rate = planet.spin();
+            let mut wk2 = tidal_frequency;
+            if let Some(spectrum_spin_rate) = stellar_spectrum_spin_rate {
+                wk2 *= spectrum_spin_rate / spin_rate;
+            }
+            let clamped_freq = match stellar_convective_k2 {
+                DataStore::Interpolate1D(interp) => {
+                    let x = interp.x_vals();
+                    wk2.clamp(x[0], x[x.len() - 1])
+                }
+                _ => wk2,
+            };
+            let k2 = stellar_convective_k2.fetch_2d(clamped_freq, time)?;
+            let mut imaginary_k2 = k2.im;
+            if let Some(spectrum_spin_rate) = stellar_spectrum_spin_rate {
+                imaginary_k2 *= (spin_rate / spectrum_spin_rate).powi(2);
+            }
+            return Ok(c64(-k2.re, imaginary_k2));
+        }
+
         let k2 = match particle_type {
             ParticleComposition::None => unreachable!(),
             // Pure solid planet
@@ -186,6 +225,8 @@ impl LoveNumber {
                 solid_k2.fetch_2d(abs!(tidal_frequency), time)?
                     + liquid_k2.fetch_2d(abs!(tidal_frequency), time)?
             }
+            // Handled above.
+            ParticleComposition::StellarConvective { .. } => unreachable!(),
         };
 
         // Real part of love number is always negative.

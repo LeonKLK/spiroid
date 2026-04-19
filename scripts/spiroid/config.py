@@ -65,6 +65,24 @@ def make_planets(planet_base, effects):
                 "KaulaTides": {"particle_type": {particle_type: {"solid_file": kaula_solid_file}}}
             }
 
+        elif effects["STAR_TIDES_ENABLED"] and effects.get("STAR_TIDES_MODEL") == "KaulaTides":
+            (
+                eccentricity,
+                inclination,
+                longitude_ascending_node,
+                pericentre_omega,
+                spin_inclination,
+            ) = planet_vals[4:]
+            planet.update(
+                {
+                    "eccentricity": eccentricity,
+                    "inclination": inclination,
+                    "longitude_ascending_node": longitude_ascending_node,
+                    "pericentre_omega": pericentre_omega,
+                    "spin_inclination": spin_inclination,
+                }
+            )
+
         if not effects["WIND_ENABLED"]:
             body["wind"] = "Disabled"
 
@@ -96,12 +114,28 @@ def make_stars(star_base, effects):
         }
 
         if effects["STAR_TIDES_ENABLED"]:
-            body["tides"] = {
-                "ConstantTimeLag": {
-                    "equilibrium": {"SigmaBarStar": 1e-06},
-                    "inertial": "FrequencyAveraged",
+            model = effects.get("STAR_TIDES_MODEL", "ConstantTimeLag")
+            if model == "KaulaTides":
+                stellar_convective_file = star_vals[7]
+                stellar_spectrum_spin_rate = star_vals[8]
+                body["tides"] = {
+                    "KaulaTides": {
+                        "particle_type": {
+                            "StellarConvective": {
+                                "stellar_convective_file": stellar_convective_file,
+                                "stellar_spectrum_spin_rate": stellar_spectrum_spin_rate,
+                            }
+                        },
+                        "atmosphere_model": "Disabled",
+                    }
                 }
-            }
+            else:
+                body["tides"] = {
+                    "ConstantTimeLag": {
+                        "equilibrium": {"SigmaBarStar": sigma_bar},
+                        "inertial": "FrequencyAveraged",
+                    }
+                }
         if effects["MAGNETIC_EFFECT_ENABLED"]:
             body["magnetism"] = {"Wind": {"footpoint_conductance": footpoint_conductance}}
 
@@ -144,25 +178,34 @@ def generate_all_effect_combinations(input_dict):
     tags = {
         "MAGNETIC_EFFECT_ENABLED": "magnetism",
         "STAR_EVOLUTION_ENABLED": "star_evolution",
-        "STAR_TIDES_ENABLED": "star_ctl_tides",
+        "STAR_TIDES_ENABLED": "star_tides",
         "PLANET_TIDES_ENABLED": "planet_kaula_tides",
         "WIND_ENABLED": "wind",
+        "GR_ENABLED": "gr",
     }
-    # Get keys and values from the input dictionary
-    keys = input_dict.keys()
-    values = input_dict.values()
-    # Generate all combinations of enabled effects.
-    combinations = [x for x in itertools.product(*values)]
-    # Create a list of tuples (dictionary, label) where label is the enabled effects.
+
+    # Separate list values (varying) from scalar values (constants passed through as-is).
+    varying = {k: v for k, v in input_dict.items() if isinstance(v, list)}
+    constants = {k: v for k, v in input_dict.items() if not isinstance(v, list)}
+
+    keys = list(varying.keys())
+    values = list(varying.values())
+    combinations = list(itertools.product(*values))
+
     result = []
     for combo in combinations:
-        # Create the dictionary from the combination
-        combo_dict = dict(zip(keys, combo))
-        # Concatenate labels from keys with True values (enabled effects) for the filename.
-        true_keys = "-".join(tags[key] for key, value in combo_dict.items() if value)
-        if true_keys == "":
-            true_keys = "no_effects"
-        # Append the tuple (dictionary, concatenated string) to the result
+        combo_dict = {**dict(zip(keys, combo)), **constants}
+        # Build label from boolean True values; use model name for tides if Kaula.
+        label_parts = []
+        for key, value in combo_dict.items():
+            if key not in tags:
+                continue
+            if key == "STAR_TIDES_ENABLED" and value:
+                model = combo_dict.get("STAR_TIDES_MODEL", "ConstantTimeLag")
+                label_parts.append(f"star_{model.lower()}_tides")
+            elif value is True:
+                label_parts.append(tags[key])
+        true_keys = "-".join(label_parts) if label_parts else "no_effects"
         result.append((combo_dict, true_keys))
 
     return result

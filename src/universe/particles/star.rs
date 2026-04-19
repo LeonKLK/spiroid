@@ -93,14 +93,45 @@ pub struct Star {
     // Integration parameters
     pub(crate) convective_zone_angular_momentum: f64, // (kg.m^2.s-1)
     pub(crate) radiative_zone_angular_momentum: f64,  // (kg.m^2.s-1)
+
+    // Kaula orbital cache — copied from planet each step, only used if KaulaTides enabled.
+    #[serde(skip)]
+    pub(crate) kaula_semi_major_axis: f64,
+    #[serde(skip)]
+    pub(crate) kaula_mean_motion: f64,
+    #[serde(skip)]
+    pub(crate) kaula_eccentricity: f64,
+    #[serde(skip)]
+    pub(crate) kaula_reduced_mass: f64,
+    #[serde(skip)]
+    pub(crate) kaula_inclination: f64,
+    #[serde(skip)]
+    pub(crate) kaula_spin_inclination: f64,
+    #[serde(skip)]
+    pub(crate) kaula_longitude_ascending_node: f64,
+    // Precomputed trig
+    #[serde(skip)]
+    pub(crate) kaula_sin_inc: f64,
+    #[serde(skip)]
+    pub(crate) kaula_cos_inc: f64,
+    #[serde(skip)]
+    pub(crate) kaula_tan_inc: f64,
+    #[serde(skip)]
+    pub(crate) kaula_sin_lan: f64,
+    #[serde(skip)]
+    pub(crate) kaula_cos_lan: f64,
+    #[serde(skip)]
+    pub(crate) kaula_tan_spin_inc: f64,
+    #[serde(skip)]
+    pub(crate) kaula_semi_minor_axis_ratio: f64,
 }
 
 impl ParticleT for Star {
     fn semi_major_axis(&self) -> f64 {
-        todo!();
+        self.kaula_semi_major_axis
     }
     fn mean_motion(&self) -> f64 {
-        todo!();
+        self.kaula_mean_motion
     }
     fn mass(&self) -> f64 {
         self.mass
@@ -112,22 +143,22 @@ impl ParticleT for Star {
         self.spin
     }
     fn spin_inclination(&self) -> f64 {
-        todo!()
+        self.kaula_spin_inclination
     }
     fn eccentricity(&self) -> f64 {
-        todo!()
+        self.kaula_eccentricity
     }
     fn inclination(&self) -> f64 {
-        todo!()
+        self.kaula_inclination
     }
     fn luminosity(&self) -> f64 {
         self.luminosity
     }
     fn moment_of_inertia(&self) -> f64 {
-        todo!()
+        self.convective_moment_of_inertia + self.radiative_moment_of_inertia
     }
     fn reduced_mass(&self) -> f64 {
-        todo!()
+        self.kaula_reduced_mass
     }
 }
 
@@ -135,6 +166,25 @@ impl Star {
     #[allow(dead_code)]
     pub(crate) fn new() -> Self {
         Self::default()
+    }
+
+    // Copies orbital state from the planet into the Kaula cache and recomputes trig values.
+    // Must be called each step before star Kaula tidal forces are computed.
+    pub fn update_kaula_orbital_state(&mut self, planet: &Planet) {
+        self.kaula_semi_major_axis = planet.semi_major_axis;
+        self.kaula_mean_motion = planet.mean_motion;
+        self.kaula_eccentricity = planet.eccentricity;
+        self.kaula_reduced_mass = planet.reduced_mass;
+        self.kaula_inclination = planet.inclination;
+        self.kaula_spin_inclination = planet.spin_inclination;
+        self.kaula_longitude_ascending_node = planet.longitude_ascending_node;
+        self.kaula_sin_inc = planet.sin_inc;
+        self.kaula_cos_inc = planet.cos_inc;
+        self.kaula_tan_inc = planet.tan_inc;
+        self.kaula_sin_lan = planet.sin_lan;
+        self.kaula_cos_lan = planet.cos_lan;
+        self.kaula_tan_spin_inc = planet.tan_spin_inc;
+        self.kaula_semi_minor_axis_ratio = planet.semi_minor_axis_ratio;
     }
 
     // Returns `true` if evolution is enabled for the star `Evolution`.

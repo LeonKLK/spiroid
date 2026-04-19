@@ -9,7 +9,7 @@ mod polynomials;
 use love_number::{LoveNumber, ParticleComposition, ThermalTideAtmosphereModel};
 use polynomials::Polynomials;
 
-use crate::universe::particles::{ParticleT, Planet};
+use crate::universe::particles::{ParticleT, Planet, Star};
 use derive_more::Add;
 
 // Upper and lower bound for the m, p, q summation.
@@ -93,6 +93,17 @@ impl Kaula {
                 ref mut liquid_k2,
                 ..
             } => Some((liquid_file, liquid_k2)),
+            _ => None,
+        }
+    }
+
+    pub fn stellar_convective_file(&mut self) -> Option<(&PathBuf, &mut DataStore<Complex<f64>>)> {
+        match self.particle_type {
+            ParticleComposition::StellarConvective {
+                ref stellar_convective_file,
+                ref mut stellar_convective_k2,
+                ..
+            } => Some((stellar_convective_file, stellar_convective_k2)),
             _ => None,
         }
     }
@@ -472,6 +483,75 @@ impl Kaula {
                     * planet.semi_minor_axis_ratio
                     * planet.tan_inc
                     * planet.reduced_mass)));
+        self.summation.real_2pq_2mp_dt * 0.5 * term1
+    }
+
+    // Summation over longitudinal modes m for the computation of the stellar longitude of ascending node derivative.
+    // Boue & Efroimksy (2019) Eq 121 and Revol et al. (2023) Eq A.9
+    pub(crate) fn summation_of_longitudinal_modes_longitude_ascending_node_stellar(
+        &self,
+        star: &Star,
+    ) -> f64 {
+        let moment_of_inertia = star.convective_moment_of_inertia + star.radiative_moment_of_inertia;
+        let term1 = (1. / (moment_of_inertia * star.spin * star.kaula_tan_inc))
+            - (star.kaula_cos_lan / (moment_of_inertia * star.spin * star.kaula_tan_spin_inc))
+            + (1.
+                / (star.kaula_reduced_mass
+                    * star.kaula_mean_motion
+                    * star.kaula_semi_major_axis.powi(2)
+                    * star.kaula_semi_minor_axis_ratio
+                    * star.kaula_sin_inc));
+
+        let term2 = -(star.kaula_sin_lan * cotan!(star.kaula_inclination))
+            / (moment_of_inertia * star.spin * star.kaula_tan_spin_inc);
+
+        let term3 = star.kaula_sin_lan
+            / (moment_of_inertia * star.spin * star.kaula_tan_spin_inc * star.kaula_sin_inc);
+
+        self.summation_of_longitudinal_modes_triple_common(term1, term2, term3)
+    }
+
+    // Summation over longitudinal modes m for the computation of the stellar spin axis inclination derivative.
+    // Boue & Efroimksy (2019) Eq 122 and Revol et al. (2023) Eq A.12
+    pub(crate) fn summation_of_longitudinal_modes_spin_axis_inclination_stellar(
+        &self,
+        star: &Star,
+    ) -> f64 {
+        let term1 = -star.kaula_sin_lan;
+        let term2 = star.kaula_cos_lan / star.kaula_tan_inc;
+        let term3 = -(star.kaula_cos_lan / star.kaula_sin_inc);
+
+        self.summation_of_longitudinal_modes_triple_common(term1, term2, term3)
+    }
+
+    // Summation over longitudinal modes m for the computation of the eccentricity dependent stellar longitude of pericentre derivative.
+    // Boue & Efroimksy (2019) Eq 120 and Revol et al. (2023) Eq A.11
+    pub(crate) fn summation_of_longitudinal_modes_pericentre_eccentricity_stellar(
+        &self,
+        star: &Star,
+    ) -> f64 {
+        let term2 = star.kaula_semi_minor_axis_ratio
+            / (star.kaula_mean_motion
+                * star.kaula_semi_major_axis.powi(2)
+                * star.kaula_eccentricity
+                * star.kaula_reduced_mass);
+        self.summation.real_2pq_dt_2mp * 0.5 * term2
+    }
+
+    // Summation over longitudinal modes m for the computation of the inclination dependent stellar longitude of pericentre derivative.
+    // Boue & Efroimksy (2019) Eq 120 and Revol et al. (2023) Eq A.11
+    pub(crate) fn summation_of_longitudinal_modes_pericentre_inclination_stellar(
+        &self,
+        star: &Star,
+    ) -> f64 {
+        let moment_of_inertia = star.convective_moment_of_inertia + star.radiative_moment_of_inertia;
+        let term1 = -((1. / (moment_of_inertia * star.spin * star.kaula_sin_inc))
+            + (1.
+                / (star.kaula_mean_motion
+                    * star.kaula_semi_major_axis.powi(2)
+                    * star.kaula_semi_minor_axis_ratio
+                    * star.kaula_tan_inc
+                    * star.kaula_reduced_mass)));
         self.summation.real_2pq_2mp_dt * 0.5 * term1
     }
 

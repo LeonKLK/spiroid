@@ -363,6 +363,15 @@ impl Universe {
                 .refresh_kaula(self.time, star, planet)?;
         }
 
+        if self.central_body.tides.kaula_enabled() {
+            // Copy the planet's orbital state into the star's Kaula cache.
+            star.update_kaula_orbital_state(planet);
+            // Recompute the star Kaula tidal effects (star is deformed body, planet is perturber).
+            self.central_body
+                .tides
+                .refresh_kaula_star(self.time, star, planet)?;
+        }
+
         Ok(())
     }
 

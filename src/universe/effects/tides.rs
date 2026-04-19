@@ -27,7 +27,9 @@ impl TidalModel {
                 // requires tidal_frequency
                 constant_time_lag.tidal_torque(star, planet)
             }
-            TidalModel::KaulaTides(_) => todo!(),
+            // Star Kaula tidal torque is computed directly in physics::force() via
+            // kaula_star_convective_zone_angular_momentum_derivative — not through this path.
+            TidalModel::KaulaTides(_) => 0.0,
         }
     }
 
@@ -35,6 +37,15 @@ impl TidalModel {
     pub(crate) fn refresh_kaula(&mut self, time: f64, star: &Star, planet: &Planet) -> Result<()> {
         if let &mut TidalModel::KaulaTides(ref mut kaula) = self {
             kaula.refresh(time, planet, star)?;
+        }
+
+        Ok(())
+    }
+
+    /// Refreshes the kaula tides data with the star as the deformed body and planet as the perturber.
+    pub(crate) fn refresh_kaula_star(&mut self, time: f64, star: &Star, planet: &Planet) -> Result<()> {
+        if let &mut TidalModel::KaulaTides(ref mut kaula) = self {
+            kaula.refresh(time, star, planet)?;
         }
 
         Ok(())

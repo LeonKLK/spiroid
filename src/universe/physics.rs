@@ -43,7 +43,23 @@ pub(crate) fn force(
             dy.orbiting_body.semi_major_axis +=
                 planet_semi_major_axis_13_div_2_derivative(planet, star);
         }
-        TidalModel::KaulaTides(_) => todo!("star Kaula tides"),
+        TidalModel::KaulaTides(kaula) => {
+            dy.orbiting_body.semi_major_axis +=
+                planet_semi_major_axis_13_div_2_non_tidal(planet, star)
+                    + kaula_star_semi_major_axis_13_div_2_tidal(planet, star, kaula);
+            dy.central_body.convective_zone_angular_momentum +=
+                kaula_star_convective_zone_angular_momentum_derivative(planet, star, kaula);
+            dy.orbiting_body.eccentricity +=
+                kaula_star_eccentricity_derivative(planet, star, kaula);
+            dy.orbiting_body.inclination +=
+                kaula_star_inclination_derivative(planet, star, kaula);
+            dy.orbiting_body.longitude_ascending_node +=
+                kaula_star_longitude_ascending_node_derivative(planet, star, kaula);
+            dy.orbiting_body.pericentre_omega +=
+                kaula_star_argument_pericentre_derivative(planet, star, kaula);
+            dy.orbiting_body.spin_inclination +=
+                kaula_star_spin_axis_inclination_derivative(planet, star, kaula);
+        }
     }
 
     // Planet tidal contributions — dispatch on the planet's chosen tidal model.
@@ -224,6 +240,109 @@ fn planet_spin_axis_inclination_derivative(planet: &Planet, star: &Star, kaula: 
         (GRAVITATIONAL * star.mass.powi(2) * planet.radius.powi(5))
             / (planet.semi_major_axis.powi(6) * planet.moment_of_inertia * planet.spin)
             * kaula.summation_of_longitudinal_modes_spin_axis_inclination(planet)
+    }
+}
+
+// --- Star Kaula tidal functions ---
+// Mirror of the planet Kaula functions with roles swapped:
+// star is the deformed body, planet is the perturber.
+
+// Semi-major axis tidal contribution from star Kaula tide.
+// Boue & Efroimksy (2019) Eq. 116 and Revol et al. (2023) Eq A.1
+fn kaula_star_semi_major_axis_13_div_2_tidal(planet: &Planet, star: &Star, kaula: &Kaula) -> f64 {
+    -13. * sqrt!(GRAVITATIONAL * (star.mass + planet.mass))
+        * (planet.mass / star.mass)
+        * star.radius.powi(5)
+        * kaula.summation_of_longitudinal_modes_semi_major_axis()
+}
+
+// Tidal torque on the star's convective zone from Kaula tide.
+// Boue & Efroimksy (2019) Eq. 123 and Revol et al. (2023) Eq A.3
+fn kaula_star_convective_zone_angular_momentum_derivative(
+    planet: &Planet,
+    star: &Star,
+    kaula: &Kaula,
+) -> f64 {
+    let star_tidal_torque = (GRAVITATIONAL * planet.mass.powi(2) * star.radius.powi(5))
+        / star.kaula_semi_major_axis.powi(6);
+    star_tidal_torque * kaula.summation_of_longitudinal_modes_spin()
+}
+
+// Eccentricity derivative from star Kaula tide.
+// Boue & Efroimksy (2019) Eq. 117 and Revol et al. (2023) Eq A.3
+fn kaula_star_eccentricity_derivative(planet: &Planet, star: &Star, kaula: &Kaula) -> f64 {
+    if star.kaula_eccentricity == 0. {
+        0.
+    } else {
+        -2.0 * sqrt!(GRAVITATIONAL * (star.mass + planet.mass))
+            * (star.radius.powi(5) / star.kaula_semi_major_axis.powf(6.5))
+            * (planet.mass / star.mass)
+            * star.kaula_semi_minor_axis_ratio
+            * kaula.summation_of_longitudinal_modes_eccentricity()
+    }
+}
+
+// Inclination derivative from star Kaula tide.
+// Boue & Efroimksy (2019) Eq. 118 and Revol et al. (2023) Eq A.7
+fn kaula_star_inclination_derivative(planet: &Planet, star: &Star, kaula: &Kaula) -> f64 {
+    if star.kaula_sin_inc == 0.0 {
+        0.0
+    } else {
+        (1. / star.kaula_sin_inc)
+            * (planet.mass / star.mass)
+            * (star.radius / star.kaula_semi_major_axis).powi(5)
+            * kaula.summation_of_longitudinal_modes_inclination()
+    }
+}
+
+// Longitude of ascending node derivative from star Kaula tide.
+// Boue & Efroimksy (2019) Eq. 121 and Revol et al. (2023) Eq A.9
+fn kaula_star_longitude_ascending_node_derivative(
+    planet: &Planet,
+    star: &Star,
+    kaula: &Kaula,
+) -> f64 {
+    if star.kaula_inclination == 0. || star.kaula_spin_inclination == 0. {
+        0.0
+    } else {
+        ((GRAVITATIONAL * planet.mass.powi(2) * star.radius.powi(5))
+            / star.kaula_semi_major_axis.powi(6))
+            * kaula.summation_of_longitudinal_modes_longitude_ascending_node_stellar(star)
+    }
+}
+
+// Longitude of pericentre derivative from star Kaula tide.
+// Boue & Efroimksy (2019) Eq. 120 and Revol et al. (2023) Eq A.11
+fn kaula_star_argument_pericentre_derivative(planet: &Planet, star: &Star, kaula: &Kaula) -> f64 {
+    let summation_pericentre_inclination =
+        if star.kaula_inclination == 0. || star.kaula_spin_inclination == 0. {
+            0.
+        } else {
+            kaula.summation_of_longitudinal_modes_pericentre_inclination_stellar(star)
+        };
+
+    let summation_pericentre_eccentricity = if star.kaula_eccentricity == 0. {
+        0.
+    } else {
+        kaula.summation_of_longitudinal_modes_pericentre_eccentricity_stellar(star)
+    };
+
+    ((GRAVITATIONAL * planet.mass.powi(2) * star.radius.powi(5))
+        / star.kaula_semi_major_axis.powi(6))
+        * (summation_pericentre_eccentricity + summation_pericentre_inclination)
+}
+
+// Spin axis inclination derivative from star Kaula tide.
+// Boue & Efroimksy (2019) Eq 122 and Revol et al. (2023) Eq A.13
+fn kaula_star_spin_axis_inclination_derivative(planet: &Planet, star: &Star, kaula: &Kaula) -> f64 {
+    if star.kaula_inclination == 0.0 || star.kaula_spin_inclination == 0.0 {
+        0.
+    } else {
+        let moment_of_inertia =
+            star.convective_moment_of_inertia + star.radiative_moment_of_inertia;
+        (GRAVITATIONAL * planet.mass.powi(2) * star.radius.powi(5))
+            / (star.kaula_semi_major_axis.powi(6) * moment_of_inertia * star.spin)
+            * kaula.summation_of_longitudinal_modes_spin_axis_inclination_stellar(star)
     }
 }
 
