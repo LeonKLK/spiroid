@@ -33,7 +33,7 @@ def make_config_files(simulation_name, all_configs, output_path):
             f.write(json.dumps(config, indent=4))
 
 
-def make_configs(simulator_setup, effect_setup, planet_setup, star_setup, integrator_setup):
+def make_configs(simulator_setup, effect_setup, planet_setup, star_setup, integrator_setup, perturber_setup=None):
     """Generates a simulation configuration file for each combination of planets and stars."""
     if len(sys.argv) != 2:
         print("usage: python3 setup.py path/to/output/folder")
@@ -56,6 +56,7 @@ def make_configs(simulator_setup, effect_setup, planet_setup, star_setup, integr
         simulation_name = f'{simulation["name"]}_{effect_label}'
         planet_base = planet_setup(effects)
         star_base = star_setup(effects)
+        perturber_base = perturber_setup(effects) if perturber_setup is not None else None
         all_configs = generate_all_configs(
             simulation["start_time"],
             simulation["final_time"],
@@ -64,5 +65,6 @@ def make_configs(simulator_setup, effect_setup, planet_setup, star_setup, integr
             star_base,
             effects,
             integrator,
+            perturber_base,
         )
         make_config_files(simulation_name, all_configs, output_path)

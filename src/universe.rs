@@ -251,10 +251,9 @@ where
 #[mul(forward)]
 #[div(forward)]
 struct PerturberIntegral {
-    // orbital eccentricity^2
+    semi_major_axis: f64,
     eccentricity: f64,
-    // longitude of ascending node
-    longitude_ascending_node: f64,
+    longitude_of_periastron: f64,
 }
 
 impl PerturberIntegral {
@@ -263,8 +262,9 @@ impl PerturberIntegral {
         if let ParticleType::Planet(planet) = &perturber.kind {
             // Perturber is a planet
             PerturberIntegral {
+                semi_major_axis: planet.semi_major_axis,
                 eccentricity: planet.eccentricity,
-                longitude_ascending_node: planet.longitude_ascending_node,
+                longitude_of_periastron: planet.pericentre_omega,
             }
         } else {
             // Perturber is a star
@@ -273,11 +273,14 @@ impl PerturberIntegral {
     }
 
     fn zero(&mut self) {
+        self.semi_major_axis = 0.0;
         self.eccentricity = 0.0;
-        self.longitude_ascending_node = 0.0;
+        self.longitude_of_periastron = 0.0;
     }
     fn denormal_check(&self) -> bool {
-        denormal_check(self.eccentricity) || denormal_check(self.longitude_ascending_node)
+        denormal_check(self.semi_major_axis)
+            || denormal_check(self.eccentricity)
+            || denormal_check(self.longitude_of_periastron)
     }
 }
 impl<T> std::ops::Mul<T> for PerturberIntegral
@@ -288,8 +291,9 @@ where
     type Output = PerturberIntegral;
     fn mul(self, scalar: T) -> PerturberIntegral {
         PerturberIntegral {
+            semi_major_axis: self.semi_major_axis * scalar,
             eccentricity: self.eccentricity * scalar,
-            longitude_ascending_node: self.longitude_ascending_node * scalar,
+            longitude_of_periastron: self.longitude_of_periastron * scalar,
         }
     }
 }
@@ -301,8 +305,9 @@ where
     type Output = PerturberIntegral;
     fn add(self, scalar: T) -> PerturberIntegral {
         PerturberIntegral {
+            semi_major_axis: self.semi_major_axis + scalar,
             eccentricity: self.eccentricity + scalar,
-            longitude_ascending_node: self.longitude_ascending_node + scalar,
+            longitude_of_periastron: self.longitude_of_periastron + scalar,
         }
     }
 }

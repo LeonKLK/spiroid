@@ -6,6 +6,7 @@ use anyhow::{Result, bail};
 pub(crate) fn force(
     central_body: &Particle,
     orbiting_body: &Particle,
+    perturbing_body: Option<&Particle>,
     disk_is_dissipated: bool,
     dy: &mut UniverseIntegral,
 ) -> Result<()> {
@@ -52,6 +53,12 @@ pub(crate) fn force(
             planet_spin_axis_inclination_derivative(planet, star, kaula);
     }
 
+    // if let Some(perturber) = perturbing_body {
+    //     if let ParticleType::Planet(perturber_planet) = &perturber.kind {
+    //         panic!("perturber semi_major_axis: {} AU", perturber_planet.semi_major_axis / 1.495978707e11);
+    //     }
+    // }
+
     // Check the derivatives for numerical errors.
     if dy.denormal_check() {
         let msg = format!("{:?}, {:?}, dy: {:?}", &star, &planet, &dy);
@@ -63,6 +70,7 @@ pub(crate) fn force(
 
     Ok(())
 }
+
 
 // Rate of change in the angular momentum in the convective zone.
 // Includes additional wind torque which is applicable
