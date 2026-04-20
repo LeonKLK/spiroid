@@ -246,8 +246,8 @@ def main():
             all_keys = filter_keys(all_keys)
             # Create a merged plot for all grouped quantities for each data file.
             for y_label, key_set in partition_keys(all_keys).items():
-                if len(key_set) == 1:
-                    continue
+                # if len(key_set) == 1:
+                #     continue
                 print(f"Making graph: {y_label}")
                 subplots = create_subplots(x_label, key_set, data)
                 create_plots(x_label, y_label, subplots, output_path)
