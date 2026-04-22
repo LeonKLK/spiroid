@@ -61,14 +61,16 @@ def effect_setup():
     # Enables or disables certain effects for all simulations.
     # Must be [True], [False] or [True, False].
     effects = {
-        "MAGNETIC_EFFECT_ENABLED": [True, False],
-        "STAR_EVOLUTION_ENABLED": [True, False],
+        "MAGNETIC_EFFECT_ENABLED": [True],
+        "STAR_EVOLUTION_ENABLED": [True],
         # Constant Time Lag stellar tide
-        "STAR_TIDES_ENABLED": [True, False],
+        "STAR_TIDES_ENABLED": [True],
         # Kaula planetary tides
-        "PLANET_TIDES_ENABLED": [False],
+        "PLANET_TIDES_ENABLED": [True],
         # Disable wind for testing conservation of angular momentum
-        "WIND_ENABLED": [True],
+        "WIND_ENABLED": [False],
+        # Companion body
+        "PERTURBER_ENABLED":[True],
     }
 
     return effects
@@ -119,6 +121,20 @@ def planet_setup(effects):
             }
         )
 
+    if effects["PERTURBER_ENABLED"]:
+        # For Kaula
+        planet_base.update(
+            {
+        
+                "eccentricity": [0.005],
+                # rad
+                "longitude_ascending_node": [1.0],
+                # rad
+                "pericentre_omega": [0.0],
+                
+            }
+        )
+
     return planet_base
 
 
@@ -145,8 +161,8 @@ def star_setup(effects):
     if effects["STAR_EVOLUTION_ENABLED"]:
         star_base["evolution"] = [
             {"Starevol": {"star_file_path": "examples/data/star/evolution/savgol_08.csv"}},
-            {"Starevol": {"star_file_path": "examples/data/star/evolution/savgol_09.csv"}},
-            {"Mesa": {"star_file_path": "examples/data/star/evolution/mesa_10.csv"}},
+            #{"Starevol": {"star_file_path": "examples/data/star/evolution/savgol_09.csv"}},
+            #{"Mesa": {"star_file_path": "examples/data/star/evolution/mesa_10.csv"}},
         ]
     else:
         # Set the initial star values that would otherwise be provided by savgol/mesa data if evolution were enabled.
@@ -210,8 +226,8 @@ def integrator_setup():
     dopri853 = {
         "Dopri853": {
             "step_controller": {
-                "relative_tolerance": 1e-10,
-                "absolute_tolerance": 1e-10,
+                "relative_tolerance": 1e-7,
+                "absolute_tolerance": 1e-7,
                 "step_size_factor_min": 0.3333333333333333,
                 "step_size_factor_max": 6.0,
                 "step_size_error_factor": 0.9,

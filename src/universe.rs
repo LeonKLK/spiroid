@@ -255,6 +255,8 @@ struct PerturberIntegral {
     eccentricity: f64,
     // longitude of ascending node
     longitude_ascending_node: f64,
+    //pericenter omega
+    pericentre_omega: f64,
 }
 
 impl PerturberIntegral {

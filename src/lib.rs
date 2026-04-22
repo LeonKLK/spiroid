@@ -26,6 +26,7 @@ impl System<UniverseIntegral> for Universe {
         force(
             &self.central_body,
             &self.orbiting_body,
+            &self.perturbing_body.as_ref(),
             self.disk_is_dissipated,
             &mut dy[0],
         )?;
