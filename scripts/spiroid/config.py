@@ -6,18 +6,21 @@ Generates dictionaries matching the structure of input configs into spiroid.
 import itertools
 
 
-def make_config(planet, star, disk_lifetime, integrator, start_time, final_time):
+def make_config(planet, star, disk_lifetime, integrator, start_time, final_time, perturber=None):
     """Generates the simulation template required to launch the simulation in Rust."""
+    universe = {
+        "disk_lifetime": disk_lifetime,
+        "central_body": star,
+        "orbiting_body": planet,
+    }
+    if perturber is not None:
+        universe["perturbing_body"] = perturber
     return {
         "resume": False,
         "initial_time": start_time,
         "final_time": final_time,
         "integrator": integrator,
-        "universe": {
-            "disk_lifetime": disk_lifetime,
-            "central_body": star,
-            "orbiting_body": planet,
-        },
+        "universe": universe,
     }
 
 
@@ -122,18 +125,37 @@ def make_stars(star_base, effects):
     return stars
 
 
+def make_perturbers(perturber_base):
+    """Generate all combinations of perturbing bodies based on specified values."""
+    if perturber_base is None:
+        return [None]
+    perturbers = []
+    combis = list(itertools.product(*perturber_base.values()))
+    for vals in combis:
+        mass, semi_major_axis, eccentricity, longitude_ascending_node, pericentre_omega = vals
+        planet = {
+            "mass": mass,
+            "semi_major_axis": semi_major_axis,
+            "eccentricity": eccentricity,
+            "longitude_ascending_node": longitude_ascending_node,
+            "pericentre_omega": pericentre_omega,
+        }
+        perturbers.append({"kind": {"Planet": planet}, "wind": "Disabled"})
+    return perturbers
+
+
 def generate_all_configs(
-    start_time, final_time, disk_lifetime, planet_base, star_base, effects, integrator
+    start_time, final_time, disk_lifetime, planet_base, star_base, effects, integrator,
+    perturber_base=None,
 ):
     """Generates a simulation configuration file for each combination of planets and stars."""
     planets = make_planets(planet_base, effects)
     stars = make_stars(star_base, effects)
+    perturbers = make_perturbers(perturber_base)
 
-    # Generate a simulation input config for all combinations
-    # of the star and planet values.
     return (
-        make_config(planet, star, disk_lifetime, integrator, start_time, final_time)
-        for (planet, star) in itertools.product(planets, stars)
+        make_config(planet, star, disk_lifetime, integrator, start_time, final_time, perturber)
+        for (planet, star, perturber) in itertools.product(planets, stars, perturbers)
     )
 
 

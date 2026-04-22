@@ -251,11 +251,7 @@ where
 #[mul(forward)]
 #[div(forward)]
 struct PerturberIntegral {
-    // orbital eccentricity^2
     eccentricity: f64,
-    // longitude of ascending node
-    longitude_ascending_node: f64,
-    //pericenter omega
     pericentre_omega: f64,
 }
 
@@ -266,7 +262,7 @@ impl PerturberIntegral {
             // Perturber is a planet
             PerturberIntegral {
                 eccentricity: planet.eccentricity,
-                longitude_ascending_node: planet.longitude_ascending_node,
+                pericentre_omega: planet.pericentre_omega,
             }
         } else {
             // Perturber is a star
@@ -276,10 +272,10 @@ impl PerturberIntegral {
 
     fn zero(&mut self) {
         self.eccentricity = 0.0;
-        self.longitude_ascending_node = 0.0;
+        self.pericentre_omega = 0.0;
     }
     fn denormal_check(&self) -> bool {
-        denormal_check(self.eccentricity) || denormal_check(self.longitude_ascending_node)
+        denormal_check(self.eccentricity) || denormal_check(self.pericentre_omega)
     }
 }
 impl<T> std::ops::Mul<T> for PerturberIntegral
@@ -291,7 +287,7 @@ where
     fn mul(self, scalar: T) -> PerturberIntegral {
         PerturberIntegral {
             eccentricity: self.eccentricity * scalar,
-            longitude_ascending_node: self.longitude_ascending_node * scalar,
+            pericentre_omega: self.pericentre_omega * scalar,
         }
     }
 }
@@ -304,7 +300,7 @@ where
     fn add(self, scalar: T) -> PerturberIntegral {
         PerturberIntegral {
             eccentricity: self.eccentricity + scalar,
-            longitude_ascending_node: self.longitude_ascending_node + scalar,
+            pericentre_omega: self.pericentre_omega + scalar,
         }
     }
 }

@@ -20,10 +20,6 @@ pub(crate) fn force(
         todo!();
     };
 
-    let ParticleType::Planet(perturber) = &perturbing_body.kind else {
-        todo!();
-    };
-
     // Star derivatives
     dy.central_body.radiative_zone_angular_momentum =
         star_radiative_zone_angular_momentum_derivative(star);
@@ -58,15 +54,16 @@ pub(crate) fn force(
             planet_spin_axis_inclination_derivative(planet, star, kaula);
     }
 
-    //pseudocode
-    // Still Planet derivatives
-    if perturbing body is true{
-        dy.orbiting_body.eccentricity += planet_eccentricity_from_companion_derivative(planet, star,perturber);
-        dy.orbiting_body.pericentre_omega += planet_longitude_periastra_derivative(planet, star, perturber);//this is for 2d case only now
-    
-    // Perturber derivatives
+    if let Some(perturbing_particle) = perturbing_body {
+        let ParticleType::Planet(perturber) = &perturbing_particle.kind else {
+            todo!();
+        };
+        // Planet derivatives from companion (2D case)
+        dy.orbiting_body.eccentricity += planet_eccentricity_from_companion_derivative(planet, star, perturber);
+        dy.orbiting_body.pericentre_omega += planet_longitude_periastra_derivative(planet, star, perturber);
+        // Perturber derivatives (2D case)
         dy.perturbing_body.eccentricity += companion_eccentricity_from_companion_derivative(planet, star, perturber);
-        dy.perturbing_body.pericentre_omega += companion_longitude_periastra_derivative(planet, star, perturber); //this is for 2d case only now
+        dy.perturbing_body.pericentre_omega += companion_longitude_periastra_derivative(planet, star, perturber);
     }
     // Check the derivatives for numerical errors.
     if dy.denormal_check() {
