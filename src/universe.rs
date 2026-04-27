@@ -251,7 +251,9 @@ where
 #[mul(forward)]
 #[div(forward)]
 struct PerturberIntegral {
+    // orbital eccentricity
     eccentricity: f64,
+    //pericenter omega
     pericentre_omega: f64,
 }
 
@@ -314,8 +316,11 @@ impl Universe {
     pub fn initialise(&mut self, time: f64) -> Result<()> {
         self.central_body.initialise(time)?;
         self.orbiting_body.initialise(time)?;
+        let ParticleType::Star(star) = &self.central_body.kind else { unreachable!() };
+        let star_mass = star.mass;
         if let Some(perturbing_body) = &mut self.perturbing_body {
             perturbing_body.initialise(time)?;
+            perturbing_body.initialise_mean_motion(star_mass);
         }
 
         Ok(())
@@ -437,6 +442,16 @@ impl Universe {
             self.orbiting_body
                 .tides
                 .refresh_kaula(self.time, star, planet)?;
+        }
+
+        if let Some(perturbing_body) = &mut self.perturbing_body {
+            let ParticleType::Planet(perturber) = &mut perturbing_body.kind else {
+                todo!()
+            };
+            perturber.refresh_companion_elements(
+                new_state.perturbing_body.eccentricity,
+                new_state.perturbing_body.pericentre_omega,
+            );
         }
 
         Ok(())

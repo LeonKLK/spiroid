@@ -44,6 +44,12 @@ impl Particle {
 
         Ok(())
     }
+
+    pub(crate) fn initialise_mean_motion(&mut self, star_mass: f64) {
+        if let ParticleType::Planet(planet) = &mut self.kind {
+            planet.initialise_mean_motion(star_mass);
+        }
+    }
 }
 
 // Common properties of both Star and Planet.

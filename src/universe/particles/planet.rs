@@ -120,6 +120,10 @@ impl Planet {
         self.moment_of_inertia = self.radius_of_gyration_2 * self.mass * self.radius.powi(2);
     }
 
+    pub(crate) fn initialise_mean_motion(&mut self, star_mass: f64) {
+        self.mean_motion = self.mean_motion(star_mass);
+    }
+
     // Refresh internal planet values.
     // ***WARNING!***
     // Stateful function.
@@ -187,6 +191,12 @@ impl Planet {
         self.cos_lan = cos!(self.longitude_ascending_node);
         self.tan_spin_inc = tan!(self.spin_inclination);
         self.semi_minor_axis_ratio = sqrt!(1. - self.eccentricity.powi(2));
+    }
+
+    // Refresh orbital elements for the 2D secular (companion) case.
+    pub(crate) fn refresh_companion_elements(&mut self, eccentricity: f64, pericentre_omega: f64) {
+        self.eccentricity = eccentricity;
+        self.pericentre_omega = pericentre_omega;
     }
 
     // Calculates the density_ratio (planet / star).

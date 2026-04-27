@@ -66,7 +66,7 @@ def effect_setup():
         # Constant Time Lag stellar tide
         "STAR_TIDES_ENABLED": [True],
         # Kaula planetary tides
-        "PLANET_TIDES_ENABLED": [True],
+        "PLANET_TIDES_ENABLED": [False],
         # Disable wind for testing conservation of angular momentum
         "WIND_ENABLED": [False],
         # Companion body
@@ -120,9 +120,9 @@ def planet_setup(effects):
                 ],
             }
         )
-
+    # Values initialized here take precedence over kaula tides if both are enabled
     if effects["PERTURBER_ENABLED"]:
-        # For Kaula
+        
         planet_base.update(
             {
         
@@ -180,6 +180,29 @@ def star_setup(effects):
         star_base["sigma_bar"] = [1.0e-6]
 
     return star_base
+
+
+def perturber_setup(effects):
+    ##############################################################
+    ##################### PERTURBER SETUP ########################
+    ##############################################################
+    if not effects["PERTURBER_ENABLED"]:
+        return None
+
+    perturber_base = {
+        # kg
+        "mass": [1.898e27],
+        # m (from AU)
+        "semi_major_axis": [AU * x for x in [5.0]],
+        # No units
+        "eccentricity": [0.05],
+        # rad
+        "longitude_ascending_node": [0.0],
+        # rad
+        "pericentre_omega": [0.0],
+    }
+
+    return perturber_base
 
 
 def integrator_setup():
@@ -250,4 +273,4 @@ def integrator_setup():
 
 
 if __name__ == "__main__":
-    make_configs(simulator_setup, effect_setup, planet_setup, star_setup, integrator_setup)
+    make_configs(simulator_setup, effect_setup, planet_setup, star_setup, integrator_setup, perturber_setup)

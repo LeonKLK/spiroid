@@ -68,6 +68,16 @@ def make_planets(planet_base, effects):
                 "KaulaTides": {"particle_type": {particle_type: {"solid_file": kaula_solid_file}}}
             }
 
+        elif effects["PERTURBER_ENABLED"]:
+            (eccentricity, longitude_ascending_node, pericentre_omega) = planet_vals[4:]
+            planet.update(
+                {
+                    "eccentricity": eccentricity,
+                    "longitude_ascending_node": longitude_ascending_node,
+                    "pericentre_omega": pericentre_omega,
+                }
+            )
+
         if not effects["WIND_ENABLED"]:
             body["wind"] = "Disabled"
 
@@ -169,6 +179,7 @@ def generate_all_effect_combinations(input_dict):
         "STAR_TIDES_ENABLED": "star_ctl_tides",
         "PLANET_TIDES_ENABLED": "planet_kaula_tides",
         "WIND_ENABLED": "wind",
+        "PERTURBER_ENABLED": "perturber",
     }
     # Get keys and values from the input dictionary
     keys = input_dict.keys()

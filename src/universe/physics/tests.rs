@@ -52,6 +52,7 @@ fn _derivatives_magnetic() {
     let _ = force(
         &universe.central_body,
         &universe.orbiting_body,
+        universe.perturbing_body.as_ref(),
         universe.disk_is_dissipated,
         &mut result,
     )
@@ -103,6 +104,7 @@ fn _derivatives_tides() {
     let _ = force(
         &universe.central_body,
         &universe.orbiting_body,
+        universe.perturbing_body.as_ref(),
         universe.disk_is_dissipated,
         &mut result,
     )
@@ -157,6 +159,7 @@ fn _derivatives_magnetic_tides() {
     let _ = force(
         &universe.central_body,
         &universe.orbiting_body,
+        universe.perturbing_body.as_ref(),
         universe.disk_is_dissipated,
         &mut result,
     )
@@ -209,6 +212,7 @@ fn _derivatives_kaula() {
     let _ = force(
         &universe.central_body,
         &universe.orbiting_body,
+        universe.perturbing_body.as_ref(),
         universe.disk_is_dissipated,
         &mut result,
     )
