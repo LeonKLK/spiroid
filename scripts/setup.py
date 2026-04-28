@@ -46,9 +46,9 @@ def simulator_setup():
         # Decription of the science case.
         "decription": "",
         # Simulation start time, seconds (from years).
-        "start_time": SECONDS_IN_YEAR * 1.0e6,
+        "start_time": SECONDS_IN_YEAR * 5.5e9,
         # Simulation end time, seconds (from years).
-        "final_time": SECONDS_IN_YEAR * 1.0e9,
+        "final_time": SECONDS_IN_YEAR * (5.5e9 + 1e6),
     }
 
     # seconds (from years)
@@ -61,14 +61,14 @@ def effect_setup():
     # Enables or disables certain effects for all simulations.
     # Must be [True], [False] or [True, False].
     effects = {
-        "MAGNETIC_EFFECT_ENABLED": [True],
+        "MAGNETIC_EFFECT_ENABLED": [False],
         "STAR_EVOLUTION_ENABLED": [True],
         # Constant Time Lag stellar tide
-        "STAR_TIDES_ENABLED": [True],
+        "STAR_TIDES_ENABLED": [False],
         # Kaula planetary tides
         "PLANET_TIDES_ENABLED": [False],
         # Disable wind for testing conservation of angular momentum
-        "WIND_ENABLED": [False],
+        "WIND_ENABLED": [True],
         # Companion body
         "PERTURBER_ENABLED":[True],
     }
@@ -82,11 +82,11 @@ def planet_setup(effects):
     ##############################################################
     planet_base = {
         # kg
-        "mass": [1.898e26],
+        "mass": [1.2151e+27],
         # m
-        "radius": [3.255e7],
+        "radius": [7.149e+7],
         # m (from AU)
-        "semi_major_axis": [AU * x for x in [0.019]],
+        "semi_major_axis": [AU * x for x in [0.045]],
         "magnetic_field": [None],  # Do not edit.
     }
 
@@ -98,16 +98,16 @@ def planet_setup(effects):
         # For Kaula
         planet_base.update(
             {
-                # rad.s
-                "spin": [8.093879511357418e-07],
                 # No units
                 "eccentricity": [0.005],
+                # rad
+                "pericentre_omega": [0.0],
+                # rad.s
+                "spin": [8.093879511357418e-07],
                 # rad
                 "inclination": [0.3490658503988659],
                 # rad
                 "longitude_ascending_node": [1.0],
-                # rad
-                "pericentre_omega": [0.0],
                 # rad
                 "spin_inclination": [0.34906584951436426],
                 # No units
@@ -122,16 +122,12 @@ def planet_setup(effects):
         )
     # Values initialized here take precedence over kaula tides if both are enabled
     if effects["PERTURBER_ENABLED"]:
-        
         planet_base.update(
             {
-        
-                "eccentricity": [0.005],
-                # rad
-                "longitude_ascending_node": [1.0],
+                # No units
+                "eccentricity": [0.014],
                 # rad
                 "pericentre_omega": [0.0],
-                
             }
         )
 
@@ -160,7 +156,7 @@ def star_setup(effects):
 
     if effects["STAR_EVOLUTION_ENABLED"]:
         star_base["evolution"] = [
-            {"Starevol": {"star_file_path": "examples/data/star/evolution/savgol_08.csv"}},
+            {"Starevol": {"star_file_path": "examples/data/star/evolution/savgol_11.csv"}},
             #{"Starevol": {"star_file_path": "examples/data/star/evolution/savgol_09.csv"}},
             #{"Mesa": {"star_file_path": "examples/data/star/evolution/mesa_10.csv"}},
         ]
@@ -191,13 +187,11 @@ def perturber_setup(effects):
 
     perturber_base = {
         # kg
-        "mass": [1.898e27],
+        "mass": [0.1*1.898e27],
         # m (from AU)
-        "semi_major_axis": [AU * x for x in [5.0]],
+        "semi_major_axis": [AU * x for x in [0.4]],
         # No units
-        "eccentricity": [0.05],
-        # rad
-        "longitude_ascending_node": [0.0],
+        "eccentricity": [0.4],
         # rad
         "pericentre_omega": [0.0],
     }

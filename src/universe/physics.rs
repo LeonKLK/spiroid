@@ -59,11 +59,15 @@ pub(crate) fn force(
             todo!();
         };
         // Planet derivatives from companion (2D case)
-        dy.orbiting_body.eccentricity += planet_eccentricity_from_companion_derivative(planet, star, perturber);
-        dy.orbiting_body.pericentre_omega += planet_longitude_periastra_derivative(planet, star, perturber);
+        dy.orbiting_body.eccentricity +=
+            planet_eccentricity_from_companion_derivative(planet, star, perturber);
+        dy.orbiting_body.pericentre_omega +=
+            planet_longitude_periastra_derivative(planet, star, perturber);
         // Perturber derivatives (2D case)
-        dy.perturbing_body.eccentricity += companion_eccentricity_from_companion_derivative(planet, star, perturber);
-        dy.perturbing_body.pericentre_omega += companion_longitude_periastra_derivative(planet, star, perturber);
+        dy.perturbing_body.eccentricity +=
+            companion_eccentricity_from_companion_derivative(planet, star, perturber);
+        dy.perturbing_body.pericentre_omega +=
+            companion_longitude_periastra_derivative(planet, star, perturber);
     }
     // Check the derivatives for numerical errors.
     if dy.denormal_check() {
@@ -221,33 +225,45 @@ fn planet_spin_axis_inclination_derivative(planet: &Planet, star: &Star, kaula: 
 //Functions with perturbing body effect
 //Mardling (2007) Eq (4) - (7)
 
-fn planet_eccentricity_from_companion_derivative(planet: &Planet, star: &Star, perturber: &Planet) -> f64 {
+fn planet_eccentricity_from_companion_derivative(
+    planet: &Planet,
+    star: &Star,
+    perturber: &Planet,
+) -> f64 {
     let planet_longitude_of_periastra = planet.longitude_ascending_node + planet.pericentre_omega;
-    let companion_longitude_of_periastra = perturber.longitude_ascending_node + perturber.pericentre_omega;
-    -15. / 16.
-        * planet.mean_motion
-        * perturber.eccentricity
-        * (perturber.mass / star.mass)
-        * (planet.semi_major_axis / perturber.semi_major_axis).powi(4)
-        * ((planet_longitude_of_periastra-companion_longitude_of_periastra).sin()
-        / (1. - perturber.eccentricity.powi(2)).powf(5. / 2.))
+    let companion_longitude_of_periastra =
+        perturber.longitude_ascending_node + perturber.pericentre_omega;
+    2.0 * planet.eccentricity
+        * (-15. / 16.
+            * planet.mean_motion
+            * perturber.eccentricity
+            * (perturber.mass / star.mass)
+            * (planet.semi_major_axis / perturber.semi_major_axis).powi(4)
+            * ((planet_longitude_of_periastra - companion_longitude_of_periastra).sin()
+                / (1. - perturber.eccentricity.powi(2)).powf(5. / 2.)))
 }
-fn companion_eccentricity_from_companion_derivative(planet: &Planet, star: &Star, perturber: &Planet) -> f64 {
+fn companion_eccentricity_from_companion_derivative(
+    planet: &Planet,
+    star: &Star,
+    perturber: &Planet,
+) -> f64 {
     let planet_longitude_of_periastra = planet.longitude_ascending_node + planet.pericentre_omega;
-    let companion_longitude_of_periastra = perturber.longitude_ascending_node + perturber.pericentre_omega;
+    let companion_longitude_of_periastra =
+        perturber.longitude_ascending_node + perturber.pericentre_omega;
     -15. / 16.
         * perturber.mean_motion
         * planet.eccentricity
         * (planet.mass / star.mass)
         * (planet.semi_major_axis / perturber.semi_major_axis).powi(3)
-        * ((planet_longitude_of_periastra-companion_longitude_of_periastra).sin()
-        / (1. - perturber.eccentricity.powi(2)).powf(2.))
+        * ((planet_longitude_of_periastra - companion_longitude_of_periastra).sin()
+            / (1. - perturber.eccentricity.powi(2)).powf(2.))
 }
 
 // derivatis only for when perturber effect is on
 fn planet_longitude_periastra_derivative(planet: &Planet, star: &Star, perturber: &Planet) -> f64 {
     let planet_longitude_of_periastra = planet.longitude_ascending_node + planet.pericentre_omega;
-    let companion_longitude_of_periastra = perturber.longitude_ascending_node + perturber.pericentre_omega;
+    let companion_longitude_of_periastra =
+        perturber.longitude_ascending_node + perturber.pericentre_omega;
     3. / 4.
         * planet.mean_motion
         * (perturber.mass / star.mass)
@@ -258,12 +274,17 @@ fn planet_longitude_periastra_derivative(planet: &Planet, star: &Star, perturber
                 * (planet.semi_major_axis / perturber.semi_major_axis)
                 * (perturber.eccentricity / planet.eccentricity)
                 * ((planet_longitude_of_periastra - companion_longitude_of_periastra).cos()
-                / (1. - perturber.eccentricity.powi(2))))
+                    / (1. - perturber.eccentricity.powi(2))))
 }
 
-fn companion_longitude_periastra_derivative(planet: &Planet, star: &Star, perturber: &Planet) -> f64 {
+fn companion_longitude_periastra_derivative(
+    planet: &Planet,
+    star: &Star,
+    perturber: &Planet,
+) -> f64 {
     let planet_longitude_of_periastra = planet.longitude_ascending_node + planet.pericentre_omega;
-    let companion_longitude_of_periastra = perturber.longitude_ascending_node + perturber.pericentre_omega;
+    let companion_longitude_of_periastra =
+        perturber.longitude_ascending_node + perturber.pericentre_omega;
     3. / 4.
         * perturber.mean_motion
         * (planet.mass / star.mass)
@@ -277,7 +298,6 @@ fn companion_longitude_periastra_derivative(planet: &Planet, star: &Star, pertur
                     / (1. - perturber.eccentricity.powi(2)))
                 * (planet_longitude_of_periastra - companion_longitude_of_periastra).cos())
 }
-
 
 #[cfg(test)]
 mod tests;

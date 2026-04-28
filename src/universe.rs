@@ -316,7 +316,10 @@ impl Universe {
     pub fn initialise(&mut self, time: f64) -> Result<()> {
         self.central_body.initialise(time)?;
         self.orbiting_body.initialise(time)?;
-        let ParticleType::Star(star) = &self.central_body.kind else { unreachable!() };
+        let ParticleType::Star(star) = &self.central_body.kind else {
+            unreachable!()
+        };
+        // This is for the calculation and initialisation of the mean motion from semi-major axis.
         let star_mass = star.mass;
         if let Some(perturbing_body) = &mut self.perturbing_body {
             perturbing_body.initialise(time)?;
@@ -445,6 +448,9 @@ impl Universe {
         }
 
         if let Some(perturbing_body) = &mut self.perturbing_body {
+            planet.eccentricity = sqrt!(new_state.orbiting_body.eccentricity);
+            planet.pericentre_omega = new_state.orbiting_body.pericentre_omega;
+
             let ParticleType::Planet(perturber) = &mut perturbing_body.kind else {
                 todo!()
             };
