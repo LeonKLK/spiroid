@@ -250,7 +250,7 @@ fn companion_eccentricity_from_companion_derivative(
     let planet_longitude_of_periastra = planet.longitude_ascending_node + planet.pericentre_omega;
     let companion_longitude_of_periastra =
         perturber.longitude_ascending_node + perturber.pericentre_omega;
-    -15. / 16.
+    15. / 16.
         * perturber.mean_motion
         * planet.eccentricity
         * (planet.mass / star.mass)
