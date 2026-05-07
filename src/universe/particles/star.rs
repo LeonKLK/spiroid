@@ -329,6 +329,11 @@ impl Star {
         self.angular_momentum_redistribution = self.angular_momentum_redistribution(); // requires convective_moment_of_inertia, radiative_moment_of_inertia, convective_zone_angular_momentum, radiative_zone_angular_momentum
         self.mass_transfer_envelope_to_core_torque = self.mass_transfer_envelope_to_core_torque(); // requires convective_radius, radiative_mass_derivative, spin
 
+        if time >= 5e6 * SECONDS_IN_YEAR && time <= 1e8 * SECONDS_IN_YEAR {
+            self.angular_momentum_redistribution = 0.0;
+            self.mass_transfer_envelope_to_core_torque = 0.0;
+        }
+
         if matches!(self.evolution, Evolution::Mesa { .. }) {
             self.core_envelope_coupling_constant = self.evolving_core_envelope_coupling_constant(); // requres mass, spin
         } else {
