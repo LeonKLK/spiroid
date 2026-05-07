@@ -51,7 +51,7 @@ impl StarCsv {
         self.convective_radius *= SOLAR_RADIUS;
         self.radiative_mass *= SOLAR_MASS;
         self.radiative_moment_of_inertia *= self.mass * self.radius.powi(2);
-        self.convective_moment_of_inertia *= self.mass * self.radius.powi(2);
+        self.convective_moment_of_inertia = 0.07 * self.mass * self.radius.powi(2);
         self.mass_loss_rate *= SOLAR_MASS / SECONDS_IN_YEAR;
     }
 
