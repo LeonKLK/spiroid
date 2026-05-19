@@ -3,6 +3,7 @@ use num_complex::Complex;
 use sci_file::DataStore;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use crate::constants::GRAVITATIONAL;
 mod love_number;
 mod polynomials;
 
@@ -68,6 +69,27 @@ pub struct Kaula {
     prev_inclination: f64,
     #[serde(skip)]
     prev_eccentricity: f64,
+    // Rescaled Im(k2) * (2-2p+q) * G²_{2pq}(e), for m=2, p=0, q=-1/0/+1.
+    #[serde(skip)]
+    rescaled_qfactor_g2_imaginary_k2_m2p0_qm1: f64,
+    #[serde(skip)]
+    rescaled_qfactor_g2_imaginary_k2_m2p0_q0: f64,
+    #[serde(skip)]
+    rescaled_qfactor_g2_imaginary_k2_m2p0_qp1: f64,
+    // Rescaled Im(k2) * (2-2p+q) * G²_{2pq}(e) * E_m * F²_{2mp}(i), for m=2, p=0, q=-1/0/+1.
+    #[serde(skip)]
+    rescaled_qfactor_g2_em_f2_imaginary_k2_m2p0_qm1: f64,
+    #[serde(skip)]
+    rescaled_qfactor_g2_em_f2_imaginary_k2_m2p0_q0: f64,
+    #[serde(skip)]
+    rescaled_qfactor_g2_em_f2_imaginary_k2_m2p0_qp1: f64,
+    // Full da/dt term contribution: -13·√(G(M_★+M_p))·(M_p/M_★)·R_★⁵ × above, for m=2, p=0, q=-1/0/+1.
+    #[serde(skip)]
+    dadt_factor_imaginary_k2_m2p0_qm1: f64,
+    #[serde(skip)]
+    dadt_factor_imaginary_k2_m2p0_q0: f64,
+    #[serde(skip)]
+    dadt_factor_imaginary_k2_m2p0_qp1: f64,
 }
 
 impl Kaula {
@@ -288,7 +310,28 @@ impl Kaula {
             self.refresh_summation(time, planet, star, mpq, &mut summation)?;
             self.summation = summation;
         }
-        //        panic!();
+        // Rescaled Im(k2) * (2-2p+q) * G²_{2,0,q} for m=2, p=0, q=-1/0/+1.
+        let (qfactor_qm1, qfactor_q0, qfactor_qp1) = self.love_number.rescaled_qfactor_imaginary_k2_m2p0();
+        self.rescaled_qfactor_g2_imaginary_k2_m2p0_qm1 = qfactor_qm1 * self.polynomials.eccentricity_2pq_squared[0][6];
+        self.rescaled_qfactor_g2_imaginary_k2_m2p0_q0  = qfactor_q0  * self.polynomials.eccentricity_2pq_squared[0][7];
+        self.rescaled_qfactor_g2_imaginary_k2_m2p0_qp1 = qfactor_qp1 * self.polynomials.eccentricity_2pq_squared[0][8];
+
+        // Rescaled Im(k2) * (2-2p+q) * G²_{2,0,q} * E_m * F²_{2,2,0} for m=2, p=0, q=-1/0/+1.
+        let em_f2 = factorial_kronecker(2) * self.polynomials.inclination_2mp_squared[2][0];
+        self.rescaled_qfactor_g2_em_f2_imaginary_k2_m2p0_qm1 = self.rescaled_qfactor_g2_imaginary_k2_m2p0_qm1 * em_f2;
+        self.rescaled_qfactor_g2_em_f2_imaginary_k2_m2p0_q0  = self.rescaled_qfactor_g2_imaginary_k2_m2p0_q0  * em_f2;
+        self.rescaled_qfactor_g2_em_f2_imaginary_k2_m2p0_qp1 = self.rescaled_qfactor_g2_imaginary_k2_m2p0_qp1 * em_f2;
+
+        // Full d(a^13/2)/dt prefactor: -13·√(G(M_★+M_p))·(M_p/M_★)·R_★⁵ for m=2, p=0, q=-1/0/+1.
+        // planet = deformed star, star = perturbing planet (roles swapped for stellar tides).
+        let prefactor = -13.0
+            * sqrt!(GRAVITATIONAL * (planet.mass() + star.mass()))
+            * (star.mass() / planet.mass())
+            * planet.radius().powi(5);
+        self.dadt_factor_imaginary_k2_m2p0_qm1 = prefactor * self.rescaled_qfactor_g2_em_f2_imaginary_k2_m2p0_qm1;
+        self.dadt_factor_imaginary_k2_m2p0_q0  = prefactor * self.rescaled_qfactor_g2_em_f2_imaginary_k2_m2p0_q0;
+        self.dadt_factor_imaginary_k2_m2p0_qp1 = prefactor * self.rescaled_qfactor_g2_em_f2_imaginary_k2_m2p0_qp1;
+
         self.save_parameters(planet);
         Ok(())
     }
@@ -694,6 +737,57 @@ impl Kaula {
                     * factorial_kronecker(m)
             })
             .sum::<f64>()
+    }
+
+    // Returns Im(k2) for m=2, p=0, q=-1/0/+1 (q indices 6/7/8 in 0-based cache).
+    pub(crate) fn stellar_imaginary_k2_m2p0(&self) -> (f64, f64, f64) {
+        (
+            self.love_number.k2(2, 0, 6).im,
+            self.love_number.k2(2, 0, 7).im,
+            self.love_number.k2(2, 0, 8).im,
+        )
+    }
+
+    // Returns raw Im(k2) before spin-rate rescaling, for m=2, p=0, q=-1/0/+1.
+    pub(crate) fn stellar_raw_imaginary_k2_m2p0(&self) -> (f64, f64, f64) {
+        self.love_number.raw_imaginary_k2_m2p0()
+    }
+
+    // Returns rescaled Im(k2) = raw_im * (Ω / ω_spec)², for m=2, p=0, q=-1/0/+1.
+    pub(crate) fn stellar_rescaled_imaginary_k2_m2p0(&self) -> (f64, f64, f64) {
+        self.love_number.rescaled_imaginary_k2_m2p0()
+    }
+
+    // Returns rescaled Im(k2) * (2-2p+q), for m=2, p=0, q=-1/0/+1.
+    pub(crate) fn stellar_rescaled_qfactor_imaginary_k2_m2p0(&self) -> (f64, f64, f64) {
+        self.love_number.rescaled_qfactor_imaginary_k2_m2p0()
+    }
+
+    // Returns rescaled Im(k2) * (2-2p+q) * G²_{2pq}(e), for m=2, p=0, q=-1/0/+1.
+    pub(crate) fn stellar_rescaled_qfactor_g2_imaginary_k2_m2p0(&self) -> (f64, f64, f64) {
+        (
+            self.rescaled_qfactor_g2_imaginary_k2_m2p0_qm1,
+            self.rescaled_qfactor_g2_imaginary_k2_m2p0_q0,
+            self.rescaled_qfactor_g2_imaginary_k2_m2p0_qp1,
+        )
+    }
+
+    // Returns -13·√(G(M_★+M_p))·(M_p/M_★)·R_★⁵ × full term, for m=2, p=0, q=-1/0/+1.
+    pub(crate) fn stellar_dadt_factor_imaginary_k2_m2p0(&self) -> (f64, f64, f64) {
+        (
+            self.dadt_factor_imaginary_k2_m2p0_qm1,
+            self.dadt_factor_imaginary_k2_m2p0_q0,
+            self.dadt_factor_imaginary_k2_m2p0_qp1,
+        )
+    }
+
+    // Returns rescaled Im(k2) * (2-2p+q) * G²_{2pq}(e) * E_m * F²_{2mp}(i), for m=2, p=0, q=-1/0/+1.
+    pub(crate) fn stellar_rescaled_qfactor_g2_em_f2_imaginary_k2_m2p0(&self) -> (f64, f64, f64) {
+        (
+            self.rescaled_qfactor_g2_em_f2_imaginary_k2_m2p0_qm1,
+            self.rescaled_qfactor_g2_em_f2_imaginary_k2_m2p0_q0,
+            self.rescaled_qfactor_g2_em_f2_imaginary_k2_m2p0_qp1,
+        )
     }
 }
 

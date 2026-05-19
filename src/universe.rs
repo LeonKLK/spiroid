@@ -364,12 +364,35 @@ impl Universe {
         }
 
         if self.central_body.tides.kaula_enabled() {
+            // Invert the exponent of e^2 to normalise the eccentricity.
+            planet.refresh_orbital_elements(
+                new_state.orbiting_body.spin,
+                sqrt!(new_state.orbiting_body.eccentricity),
+                new_state.orbiting_body.inclination,
+                new_state.orbiting_body.longitude_ascending_node,
+                new_state.orbiting_body.pericentre_omega,
+                new_state.orbiting_body.spin_inclination,
+            );
             // Copy the planet's orbital state into the star's Kaula cache.
             star.update_kaula_orbital_state(planet);
             // Recompute the star Kaula tidal effects (star is deformed body, planet is perturber).
             self.central_body
                 .tides
                 .refresh_kaula_star(self.time, star, planet)?;
+            let (qm1, q0, qp1) = self.central_body.tides.stellar_imaginary_k2_m2p0();
+            star.update_stellar_imaginary_k2(qm1, q0, qp1);
+            let (qm1, q0, qp1) = self.central_body.tides.stellar_raw_imaginary_k2_m2p0();
+            star.update_stellar_raw_imaginary_k2(qm1, q0, qp1);
+            let (qm1, q0, qp1) = self.central_body.tides.stellar_rescaled_imaginary_k2_m2p0();
+            star.update_stellar_rescaled_imaginary_k2(qm1, q0, qp1);
+            let (qm1, q0, qp1) = self.central_body.tides.stellar_rescaled_qfactor_imaginary_k2_m2p0();
+            star.update_stellar_rescaled_qfactor_imaginary_k2(qm1, q0, qp1);
+            let (qm1, q0, qp1) = self.central_body.tides.stellar_rescaled_qfactor_g2_imaginary_k2_m2p0();
+            star.update_stellar_rescaled_qfactor_g2_imaginary_k2(qm1, q0, qp1);
+            let (qm1, q0, qp1) = self.central_body.tides.stellar_rescaled_qfactor_g2_em_f2_imaginary_k2_m2p0();
+            star.update_stellar_rescaled_qfactor_g2_em_f2_imaginary_k2(qm1, q0, qp1);
+            let (qm1, q0, qp1) = self.central_body.tides.stellar_dadt_factor_imaginary_k2_m2p0();
+            star.update_stellar_dadt_factor_imaginary_k2(qm1, q0, qp1);
         }
 
         Ok(())

@@ -49,6 +49,27 @@ pub(crate) struct LoveNumber {
     #[serde(skip)]
     #[serde(default = "love_number_k2_default")]
     k2: [Complex<f64>; 57],
+    // Raw Im(k2) before spin-rate rescaling, for m=2, p=0, q=-1/0/+1.
+    #[serde(skip)]
+    raw_imaginary_k2_m2p0_qm1: f64,
+    #[serde(skip)]
+    raw_imaginary_k2_m2p0_q0: f64,
+    #[serde(skip)]
+    raw_imaginary_k2_m2p0_qp1: f64,
+    // Rescaled Im(k2) = raw_im * (Ω / ω_spec)², for m=2, p=0, q=-1/0/+1.
+    #[serde(skip)]
+    rescaled_imaginary_k2_m2p0_qm1: f64,
+    #[serde(skip)]
+    rescaled_imaginary_k2_m2p0_q0: f64,
+    #[serde(skip)]
+    rescaled_imaginary_k2_m2p0_qp1: f64,
+    // Rescaled Im(k2) * (2-2p+q), for m=2, p=0, q=-1/0/+1.
+    #[serde(skip)]
+    rescaled_qfactor_imaginary_k2_m2p0_qm1: f64,
+    #[serde(skip)]
+    rescaled_qfactor_imaginary_k2_m2p0_q0: f64,
+    #[serde(skip)]
+    rescaled_qfactor_imaginary_k2_m2p0_qp1: f64,
 }
 
 fn love_number_k2_default() -> [Complex<f64>; 57] {
@@ -59,6 +80,15 @@ impl Default for LoveNumber {
     fn default() -> Self {
         Self {
             k2: love_number_k2_default(),
+            raw_imaginary_k2_m2p0_qm1: 0.0,
+            raw_imaginary_k2_m2p0_q0: 0.0,
+            raw_imaginary_k2_m2p0_qp1: 0.0,
+            rescaled_imaginary_k2_m2p0_qm1: 0.0,
+            rescaled_imaginary_k2_m2p0_q0: 0.0,
+            rescaled_imaginary_k2_m2p0_qp1: 0.0,
+            rescaled_qfactor_imaginary_k2_m2p0_qm1: 0.0,
+            rescaled_qfactor_imaginary_k2_m2p0_q0: 0.0,
+            rescaled_qfactor_imaginary_k2_m2p0_qp1: 0.0,
         }
     }
 }
@@ -69,6 +99,30 @@ impl LoveNumber {
         // The cached data is stored in a 1D array, so the 3D coordinates are mapped to the 1D index.
         let index = Self::get_index(m, p, q);
         self.k2[index]
+    }
+
+    pub(crate) fn raw_imaginary_k2_m2p0(&self) -> (f64, f64, f64) {
+        (
+            self.raw_imaginary_k2_m2p0_qm1,
+            self.raw_imaginary_k2_m2p0_q0,
+            self.raw_imaginary_k2_m2p0_qp1,
+        )
+    }
+
+    pub(crate) fn rescaled_imaginary_k2_m2p0(&self) -> (f64, f64, f64) {
+        (
+            self.rescaled_imaginary_k2_m2p0_qm1,
+            self.rescaled_imaginary_k2_m2p0_q0,
+            self.rescaled_imaginary_k2_m2p0_qp1,
+        )
+    }
+
+    pub(crate) fn rescaled_qfactor_imaginary_k2_m2p0(&self) -> (f64, f64, f64) {
+        (
+            self.rescaled_qfactor_imaginary_k2_m2p0_qm1,
+            self.rescaled_qfactor_imaginary_k2_m2p0_q0,
+            self.rescaled_qfactor_imaginary_k2_m2p0_qp1,
+        )
     }
 
     #[allow(clippy::cast_possible_truncation)]
@@ -149,7 +203,7 @@ impl LoveNumber {
                         // Cache miss, compute k2
                         let w_2lmpq =
                             Self::tidal_excitation_frequency_mode_sigma_2mpq(planet, m, p, q);
-                        k2 = Self::compute_k2(
+                        let (k2_scaled, raw_im, rescaled_im) = Self::compute_k2(
                             time,
                             w_2lmpq,
                             planet,
@@ -157,6 +211,26 @@ impl LoveNumber {
                             particle_type,
                             thermal_tide_model,
                         )?;
+                        k2 = k2_scaled;
+                        // Store raw and rescaled Im(k2) for m=2, p=0, q=-1/0/+1.
+                        match (m, p, q) {
+                            (2, 0, 6) => {
+                                self.raw_imaginary_k2_m2p0_qm1 = raw_im;
+                                self.rescaled_imaginary_k2_m2p0_qm1 = rescaled_im;
+                                self.rescaled_qfactor_imaginary_k2_m2p0_qm1 = rescaled_im * 1.0; // (2-2*0+(-1)) = 1
+                            }
+                            (2, 0, 7) => {
+                                self.raw_imaginary_k2_m2p0_q0 = raw_im;
+                                self.rescaled_imaginary_k2_m2p0_q0 = rescaled_im;
+                                self.rescaled_qfactor_imaginary_k2_m2p0_q0 = rescaled_im * 2.0; // (2-2*0+0) = 2
+                            }
+                            (2, 0, 8) => {
+                                self.raw_imaginary_k2_m2p0_qp1 = raw_im;
+                                self.rescaled_imaginary_k2_m2p0_qp1 = rescaled_im;
+                                self.rescaled_qfactor_imaginary_k2_m2p0_qp1 = rescaled_im * 3.0; // (2-2*0+1) = 3
+                            }
+                            _ => {}
+                        }
                         // Add to cache
                         self.set_k2(m, p, q, k2);
                     }
@@ -167,6 +241,9 @@ impl LoveNumber {
     }
 
     // Select the love number calculation based on the composition of the planet.
+    // Returns (scaled_k2, raw_imaginary_k2, rescaled_imaginary_k2) where:
+    //   raw_imaginary_k2     = Im(k2) before spin-rate rescaling
+    //   rescaled_imaginary_k2 = raw_im * (Ω / ω_spec)²
     fn compute_k2(
         time: f64,
         tidal_frequency: f64,
@@ -174,7 +251,7 @@ impl LoveNumber {
         star: &impl ParticleT,
         particle_type: &ParticleComposition,
         thermal_tide_model: &ThermalTideAtmosphereModel,
-    ) -> Result<Complex<f64>> {
+    ) -> Result<(Complex<f64>, f64, f64)> {
         // Depending on inteprolation table, a 1D (tidal_frequency) or 2D (tidal_frequency, time) interpolator is used.
 
         // Stellar convective zone: table covers the full signed frequency range [-max, +max].
@@ -199,11 +276,12 @@ impl LoveNumber {
                 _ => wk2,
             };
             let k2 = stellar_convective_k2.fetch_2d(clamped_freq, time)?;
-            let mut imaginary_k2 = k2.im;
+            let raw_imaginary_k2 = k2.im;
+            let mut imaginary_k2 = raw_imaginary_k2;
             if let Some(spectrum_spin_rate) = stellar_spectrum_spin_rate {
                 imaginary_k2 *= (spin_rate / spectrum_spin_rate).powi(2);
             }
-            return Ok(c64(-k2.re, imaginary_k2));
+            return Ok((c64(-k2.re, imaginary_k2), raw_imaginary_k2, imaginary_k2));
         }
 
         let k2 = match particle_type {
@@ -233,8 +311,9 @@ impl LoveNumber {
         // Imaginary part of love number is sign dependent on the freqency.
         let planet_k2 = c64(-k2.re, tidal_frequency.signum() * k2.im);
         let atmosphere_k2 = thermal_tide_model.imaginary_atmosphere(tidal_frequency, planet, star);
+        let result = planet_k2 + atmosphere_k2;
 
-        Ok(planet_k2 + atmosphere_k2)
+        Ok((result, result.im, result.im))
     }
 }
 

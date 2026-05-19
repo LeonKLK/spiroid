@@ -26,6 +26,8 @@ pub struct StarCsv {
     pub(crate) convective_moment_of_inertia_derivative: f64,
     #[serde(skip)]
     pub(crate) radiative_mass_derivative: f64,
+    #[serde(skip)]
+    pub(crate) radius_derivative: f64,
 }
 
 impl StarCsv {
@@ -51,6 +53,7 @@ impl StarCsv {
         self.convective_radius *= SOLAR_RADIUS;
         self.radiative_mass *= SOLAR_MASS;
         self.radiative_moment_of_inertia *= self.mass * self.radius.powi(2);
+        // convective_moment_of_inertia is now the moment of inertia of the whole solid body star
         self.convective_moment_of_inertia = 0.07 * self.mass * self.radius.powi(2);
         self.mass_loss_rate *= SOLAR_MASS / SECONDS_IN_YEAR;
     }
@@ -62,8 +65,10 @@ impl StarCsv {
         // Derivative is zero for first and last timesteps.
         stars[0].radiative_mass_derivative = 0.;
         stars[0].convective_moment_of_inertia_derivative = 0.;
+        stars[0].radius_derivative = 0.;
         stars[stars_len - 1].radiative_mass_derivative = 0.;
         stars[stars_len - 1].convective_moment_of_inertia_derivative = 0.;
+        stars[stars_len - 1].radius_derivative = 0.;
 
         for i in 1..stars_len - 1 {
             // Unpack values of the star at three consecutive timesteps to compute the derivatives.
@@ -75,6 +80,7 @@ impl StarCsv {
             curr.convective_moment_of_inertia_derivative = (next.convective_moment_of_inertia
                 - prev.convective_moment_of_inertia)
                 / (next.age - prev.age);
+            curr.radius_derivative = (next.radius - prev.radius) / (next.age - prev.age);
         }
     }
 }

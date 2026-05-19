@@ -56,6 +56,55 @@ impl TidalModel {
         matches!(&self, TidalModel::KaulaTides(_))
     }
 
+    pub(crate) fn stellar_imaginary_k2_m2p0(&self) -> (f64, f64, f64) {
+        match self {
+            TidalModel::KaulaTides(kaula) => kaula.stellar_imaginary_k2_m2p0(),
+            _ => (0.0, 0.0, 0.0),
+        }
+    }
+
+    pub(crate) fn stellar_raw_imaginary_k2_m2p0(&self) -> (f64, f64, f64) {
+        match self {
+            TidalModel::KaulaTides(kaula) => kaula.stellar_raw_imaginary_k2_m2p0(),
+            _ => (0.0, 0.0, 0.0),
+        }
+    }
+
+    pub(crate) fn stellar_rescaled_imaginary_k2_m2p0(&self) -> (f64, f64, f64) {
+        match self {
+            TidalModel::KaulaTides(kaula) => kaula.stellar_rescaled_imaginary_k2_m2p0(),
+            _ => (0.0, 0.0, 0.0),
+        }
+    }
+
+    pub(crate) fn stellar_rescaled_qfactor_imaginary_k2_m2p0(&self) -> (f64, f64, f64) {
+        match self {
+            TidalModel::KaulaTides(kaula) => kaula.stellar_rescaled_qfactor_imaginary_k2_m2p0(),
+            _ => (0.0, 0.0, 0.0),
+        }
+    }
+
+    pub(crate) fn stellar_rescaled_qfactor_g2_imaginary_k2_m2p0(&self) -> (f64, f64, f64) {
+        match self {
+            TidalModel::KaulaTides(kaula) => kaula.stellar_rescaled_qfactor_g2_imaginary_k2_m2p0(),
+            _ => (0.0, 0.0, 0.0),
+        }
+    }
+
+    pub(crate) fn stellar_rescaled_qfactor_g2_em_f2_imaginary_k2_m2p0(&self) -> (f64, f64, f64) {
+        match self {
+            TidalModel::KaulaTides(kaula) => kaula.stellar_rescaled_qfactor_g2_em_f2_imaginary_k2_m2p0(),
+            _ => (0.0, 0.0, 0.0),
+        }
+    }
+
+    pub(crate) fn stellar_dadt_factor_imaginary_k2_m2p0(&self) -> (f64, f64, f64) {
+        match self {
+            TidalModel::KaulaTides(kaula) => kaula.stellar_dadt_factor_imaginary_k2_m2p0(),
+            _ => (0.0, 0.0, 0.0),
+        }
+    }
+
     /// Returns a mutable reference to the `Kaula` struct if the `TidalModel` is `KaulaTides`.
     pub fn kaula_get_mut(&mut self) -> Option<&mut Kaula> {
         match self {

@@ -1,7 +1,7 @@
 pub(crate) mod star_csv;
 use crate::constants::{
     GRAVITATIONAL, PI, ROSSBY_SATURATION, ROSSBY_SUN, SECONDS_IN_DAY, SECONDS_IN_YEAR, SOLAR_ANGULAR_VELOCITY,
-    SOLAR_MASS, SOLAR_MASS_LOSS_RATE, SOLAR_RADIUS, TWO_PI,
+    SOLAR_MASS, SOLAR_MASS_LOSS_RATE, SOLAR_RADIUS, TWO_PI, AU,
 };
 use crate::universe::particles::{ParticleT, Planet};
 use serde::{Deserialize, Serialize};
@@ -62,6 +62,7 @@ pub struct Star {
     pub(crate) convective_moment_of_inertia: f64, // (kg.m2)
     pub(crate) radiative_moment_of_inertia: f64,  // (kg.m2)
     radiative_mass_derivative: f64,
+    pub(crate) radius_derivative: f64,
     pub(crate) luminosity: f64, // solar units
 
     // Calculated internally
@@ -80,6 +81,35 @@ pub struct Star {
     pub(crate) tidal_frequency: f64,
     pub(crate) magnetic_torque: f64,
     pub(crate) tidal_torque_convective: f64,
+
+    // Stellar Kaula love number imaginary parts for m=2, p=0, q=-1/0/+1 (spin-rate rescaled)
+    stellar_imaginary_k2_qm1: f64,
+    stellar_imaginary_k2_q0: f64,
+    stellar_imaginary_k2_qp1: f64,
+    // Raw Im(k2) before spin-rate rescaling, for m=2, p=0, q=-1/0/+1
+    stellar_raw_imaginary_k2_qm1: f64,
+    stellar_raw_imaginary_k2_q0: f64,
+    stellar_raw_imaginary_k2_qp1: f64,
+    // Rescaled Im(k2) = raw_im * (Ω / ω_spec)², for m=2, p=0, q=-1/0/+1
+    stellar_rescaled_imaginary_k2_qm1: f64,
+    stellar_rescaled_imaginary_k2_q0: f64,
+    stellar_rescaled_imaginary_k2_qp1: f64,
+    // Rescaled Im(k2) * (2-2p+q), for m=2, p=0, q=-1/0/+1
+    stellar_rescaled_qfactor_imaginary_k2_qm1: f64,
+    stellar_rescaled_qfactor_imaginary_k2_q0: f64,
+    stellar_rescaled_qfactor_imaginary_k2_qp1: f64,
+    // Rescaled Im(k2) * (2-2p+q) * G²_{2pq}(e), for m=2, p=0, q=-1/0/+1
+    stellar_rescaled_qfactor_g2_imaginary_k2_qm1: f64,
+    stellar_rescaled_qfactor_g2_imaginary_k2_q0: f64,
+    stellar_rescaled_qfactor_g2_imaginary_k2_qp1: f64,
+    // Rescaled Im(k2) * (2-2p+q) * G²_{2pq}(e) * E_m * F²_{2mp}(i), for m=2, p=0, q=-1/0/+1
+    stellar_rescaled_qfactor_g2_em_f2_imaginary_k2_qm1: f64,
+    stellar_rescaled_qfactor_g2_em_f2_imaginary_k2_q0: f64,
+    stellar_rescaled_qfactor_g2_em_f2_imaginary_k2_qp1: f64,
+    // -13·√(G(M_★+M_p))·(M_p/M_★)·R_★⁵ × full term, for m=2, p=0, q=-1/0/+1
+    stellar_dadt_factor_imaginary_k2_qm1: f64,
+    stellar_dadt_factor_imaginary_k2_q0: f64,
+    stellar_dadt_factor_imaginary_k2_qp1: f64,
 
     // Evolved parameters
     pub(crate) evolved_wind_torque: f64,
@@ -250,6 +280,7 @@ impl Star {
                 self.radiative_mass_derivative = new.radiative_mass_derivative;
                 self.convective_moment_of_inertia_derivative =
                     new.convective_moment_of_inertia_derivative;
+                self.radius_derivative = new.radius_derivative;
 
                 if matches!(self.evolution, Evolution::Mesa { .. }) {
                     self.convective_turnover_time = new.convective_turnover_time;
@@ -364,6 +395,48 @@ impl Star {
     // Update the tidal torque.
     pub(crate) fn update_tidal_torque(&mut self, tidal_torque_convective: f64) {
         self.tidal_torque_convective = tidal_torque_convective;
+    }
+
+    pub(crate) fn update_stellar_imaginary_k2(&mut self, qm1: f64, q0: f64, qp1: f64) {
+        self.stellar_imaginary_k2_qm1 = qm1;
+        self.stellar_imaginary_k2_q0 = q0;
+        self.stellar_imaginary_k2_qp1 = qp1;
+    }
+
+    pub(crate) fn update_stellar_raw_imaginary_k2(&mut self, qm1: f64, q0: f64, qp1: f64) {
+        self.stellar_raw_imaginary_k2_qm1 = qm1;
+        self.stellar_raw_imaginary_k2_q0 = q0;
+        self.stellar_raw_imaginary_k2_qp1 = qp1;
+    }
+
+    pub(crate) fn update_stellar_rescaled_imaginary_k2(&mut self, qm1: f64, q0: f64, qp1: f64) {
+        self.stellar_rescaled_imaginary_k2_qm1 = qm1;
+        self.stellar_rescaled_imaginary_k2_q0 = q0;
+        self.stellar_rescaled_imaginary_k2_qp1 = qp1;
+    }
+
+    pub(crate) fn update_stellar_rescaled_qfactor_imaginary_k2(&mut self, qm1: f64, q0: f64, qp1: f64) {
+        self.stellar_rescaled_qfactor_imaginary_k2_qm1 = qm1;
+        self.stellar_rescaled_qfactor_imaginary_k2_q0 = q0;
+        self.stellar_rescaled_qfactor_imaginary_k2_qp1 = qp1;
+    }
+
+    pub(crate) fn update_stellar_rescaled_qfactor_g2_imaginary_k2(&mut self, qm1: f64, q0: f64, qp1: f64) {
+        self.stellar_rescaled_qfactor_g2_imaginary_k2_qm1 = qm1;
+        self.stellar_rescaled_qfactor_g2_imaginary_k2_q0 = q0;
+        self.stellar_rescaled_qfactor_g2_imaginary_k2_qp1 = qp1;
+    }
+
+    pub(crate) fn update_stellar_rescaled_qfactor_g2_em_f2_imaginary_k2(&mut self, qm1: f64, q0: f64, qp1: f64) {
+        self.stellar_rescaled_qfactor_g2_em_f2_imaginary_k2_qm1 = qm1;
+        self.stellar_rescaled_qfactor_g2_em_f2_imaginary_k2_q0 = q0;
+        self.stellar_rescaled_qfactor_g2_em_f2_imaginary_k2_qp1 = qp1;
+    }
+
+    pub(crate) fn update_stellar_dadt_factor_imaginary_k2(&mut self, qm1: f64, q0: f64, qp1: f64) {
+        self.stellar_dadt_factor_imaginary_k2_qm1 = qm1;
+        self.stellar_dadt_factor_imaginary_k2_q0 = q0;
+        self.stellar_dadt_factor_imaginary_k2_qp1 = qp1;
     }
 
     // Update the magnetic torque.
@@ -609,7 +682,7 @@ impl Star {
     fn wind_torque(&self) -> f64 {
         // Bolmont & Mathis 2016, Eq. 14
         // TODO: double check k_factor (K in Eq. 14) to Star struct
-        let k_factor: f64 = 1.98e40;
+        let k_factor: f64 = 5.15e-18 * SOLAR_MASS * AU.powi(2) * SECONDS_IN_DAY;
         // TODO: add rotation_saturation (Ω_sat) to Star struct
         let rotation_saturation: f64 = 9. * (TWO_PI / (25. * SECONDS_IN_DAY) );
 

@@ -258,6 +258,7 @@ fn kaula_star_semi_major_axis_13_div_2_tidal(planet: &Planet, star: &Star, kaula
 
 // Tidal torque on the star's convective zone from Kaula tide.
 // Boue & Efroimksy (2019) Eq. 123 and Revol et al. (2023) Eq A.3
+// For star we integrate the angular momentum instead of the spin rate
 fn kaula_star_convective_zone_angular_momentum_derivative(
     planet: &Planet,
     star: &Star,
@@ -265,6 +266,7 @@ fn kaula_star_convective_zone_angular_momentum_derivative(
 ) -> f64 {
     let star_tidal_torque = (GRAVITATIONAL * planet.mass.powi(2) * star.radius.powi(5))
         / star.kaula_semi_major_axis.powi(6);
+    
     star_tidal_torque * kaula.summation_of_longitudinal_modes_spin()
 }
 
