@@ -370,7 +370,7 @@ impl Universe {
                 .tides
                 .refresh_kaula(self.time, star, planet)?;
         }
-        // Stellar tide: star deformed, planet perturber. Must precede `tidal_torque`.
+        // Stellar tide: star deformed, planet perturber. Must precede `stellar_tidal_torque`.
         if star_kaula {
             self.central_body
                 .tides
@@ -378,7 +378,7 @@ impl Universe {
         }
 
         // Compute the enabled effects dependent on a planet (magnetism, stellar tides)
-        star.update_tidal_torque(self.central_body.tides.tidal_torque(star, planet));
+        star.update_tidal_torque(self.central_body.tides.stellar_tidal_torque(star, planet));
         star.update_magnetic_torque(self.central_body.magnetism.magnetic_torque(planet, star)); // Requires wind torque to be calculated first.
         star.update_evolved_change_semi_major_axis(self.central_body.wind.wind_torque(), planet);
 

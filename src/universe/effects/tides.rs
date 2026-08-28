@@ -20,12 +20,12 @@ pub enum TidalModel {
 }
 
 impl TidalModel {
-    pub(crate) fn tidal_torque(&self, star: &Star, planet: &Planet) -> f64 {
+    pub(crate) fn stellar_tidal_torque(&self, star: &Star, planet: &Planet) -> f64 {
         match self {
             TidalModel::Disabled => 0.0,
             TidalModel::ConstantTimeLag(constant_time_lag) => {
                 // requires tidal_frequency
-                constant_time_lag.tidal_torque(star, planet)
+                constant_time_lag.stellar_tidal_torque(star, planet)
             }
             // Stellar tide with the kaula model: the star is the deformed body.
             // Requires `refresh_kaula_star` to have been called for the current state.

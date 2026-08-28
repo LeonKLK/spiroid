@@ -189,7 +189,7 @@ fn _tidal_torque_disabled() {
     let planet = test_planet_magnetic();
     star.refresh_tidal_frequency(&planet);
     let tides = TidalModel::Disabled;
-    let result = tides.tidal_torque(&star, &planet);
+    let result = tides.stellar_tidal_torque(&star, &planet);
     assert_eq!(expected, result);
 }
 
@@ -203,6 +203,6 @@ fn _tidal_torque_enabled() {
         equilibrium: Equilibrium::SigmaBarStar(1e-6),
         inertial: Inertial::FrequencyAveraged,
     });
-    let result = tides.tidal_torque(&star, &planet);
+    let result = tides.stellar_tidal_torque(&star, &planet);
     assert_eq!(expected, result);
 }

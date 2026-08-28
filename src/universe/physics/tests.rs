@@ -265,7 +265,7 @@ fn _planet_semi_major_axis_13_div_2_derivative() {
     let mut wind = IsothermalWind::default();
     wind.footpoint_conductance = 7e4;
     let mut magnetism = MagneticModel::Wind(wind);
-    let tidal_torque_convective = tides.tidal_torque(&star, &planet);
+    let tidal_torque_convective = tides.stellar_tidal_torque(&star, &planet);
     let magnetic_torque = magnetism.magnetic_torque(&planet, &star);
     let wind_torque = WindModel::Enabled.wind_torque();
 
@@ -289,7 +289,7 @@ fn _kaula_planet_semi_major_axis_13_div_2_derivative() {
         inertial: Inertial::FrequencyAveraged,
     });
     let mut magnetism = MagneticModel::Wind(IsothermalWind::default());
-    let tidal_torque_convective = tides.tidal_torque(&star, &planet);
+    let tidal_torque_convective = tides.stellar_tidal_torque(&star, &planet);
     let magnetic_torque = magnetism.magnetic_torque(&planet, &star);
     let wind_torque = WindModel::Enabled.wind_torque();
 

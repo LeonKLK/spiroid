@@ -18,7 +18,7 @@ impl ConstantTimeLag {
     // This is a re-write of Eq. 3 and 19 from Benbakoura et al. 2019
     // without the factors that are in the function semi_major_axis_13_div_2_derivative in physics.rs
     // The a^-6 is here to compensate the a^6 in physics.rs
-    pub fn tidal_torque(&self, star: &Star, planet: &Planet) -> f64 {
+    pub fn stellar_tidal_torque(&self, star: &Star, planet: &Planet) -> f64 {
         let total_dissipation = 1. / self.equilibrium.tidal_quality(star, planet)
             + 1. / self.inertial.tidal_quality(star, planet);
 
