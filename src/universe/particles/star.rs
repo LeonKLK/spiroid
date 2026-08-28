@@ -484,27 +484,29 @@ impl Star {
         mass_loss * SOLAR_MASS / SECONDS_IN_YEAR
     }
 
-    // Solar Rossby number in this code's own convention: Ro = P_rot / tau_cz, with the
-    // solar turnover time from the same Ardestani et al. 2017 formula used for every star
-    // (convective_turnover_time_sun, set in initialise). Gives 25.38 d / 24.61 d = 1.031.
-    //
-    // This is deliberately NOT the published constant ROSSBY_SUN = 1.113 (Ardestani et al.
-    // 2017): that value was derived with Ardestani's own solar calibration and is
-    // inconsistent with this code's turnover-time recipe. The unsaturated wind torque
-    // branch, (tau_cz / tau_cz_sun)^2 * (spin / SOLAR_ANGULAR_VELOCITY)^3, implicitly
-    // defines the Sun through the pair (tau_cz_sun, SOLAR_ANGULAR_VELOCITY) - i.e. this
-    // value. The saturated branch joins it continuously at Ro = ROSSBY_SATURATION only if
-    // the SAME solar Rossby number underlies both; using the published constant instead
-    // produces a +16.5% torque discontinuity at the boundary (the "~17% torque jump" that
-    // motivated the tanh blend in wind_torque). Computing it here from the same quantities
-    // keeps the two branches consistent by construction, even if the turnover-time formula
-    // or solar period changes later.
-    //
-    // The implied saturation amplitude chi = rossby_sun_code / ROSSBY_SATURATION = 11.5
-    // lies within the chi = 10-15 range quoted by Matt et al. 2015.
-    fn rossby_sun_code(&self) -> f64 {
-        (TWO_PI / SOLAR_ANGULAR_VELOCITY) / self.convective_turnover_time_sun
-    }
+    // Disabled: code-consistent solar Rossby number, kept for reference. The wind torque
+    // uses the published constant ROSSBY_SUN instead.
+    // // Solar Rossby number in this code's own convention: Ro = P_rot / tau_cz, with the
+    // // solar turnover time from the same Ardestani et al. 2017 formula used for every star
+    // // (convective_turnover_time_sun, set in initialise). Gives 25.38 d / 24.61 d = 1.031.
+    // //
+    // // This is deliberately NOT the published constant ROSSBY_SUN = 1.113 (Ardestani et al.
+    // // 2017): that value was derived with Ardestani's own solar calibration and is
+    // // inconsistent with this code's turnover-time recipe. The unsaturated wind torque
+    // // branch, (tau_cz / tau_cz_sun)^2 * (spin / SOLAR_ANGULAR_VELOCITY)^3, implicitly
+    // // defines the Sun through the pair (tau_cz_sun, SOLAR_ANGULAR_VELOCITY) - i.e. this
+    // // value. The saturated branch joins it continuously at Ro = ROSSBY_SATURATION only if
+    // // the SAME solar Rossby number underlies both; using the published constant instead
+    // // produces a +16.5% torque discontinuity at the boundary (the "~17% torque jump" that
+    // // motivated the tanh blend in wind_torque). Computing it here from the same quantities
+    // // keeps the two branches consistent by construction, even if the turnover-time formula
+    // // or solar period changes later.
+    // //
+    // // The implied saturation amplitude chi = rossby_sun_code / ROSSBY_SATURATION = 11.5
+    // // lies within the chi = 10-15 range quoted by Matt et al. 2015.
+    // fn rossby_sun_code(&self) -> f64 {
+    //     (TWO_PI / SOLAR_ANGULAR_VELOCITY) / self.convective_turnover_time_sun
+    // }
 
     // Stellar wind torque.
     // Matt et al. 2015, Eq. 3
@@ -525,11 +527,8 @@ impl Star {
             * (self.convective_turnover_time / self.convective_turnover_time_sun).powi(2)
             * (self.spin / SOLAR_ANGULAR_VELOCITY).powi(3);
         // Matt et al. 2015, Eq. 7 (saturated regime, Ro <= Ro_sat)
-        // Amplitude chi^2 = (rossby_sun_code / ROSSBY_SATURATION)^2 uses the code-consistent
-        // solar Rossby number (see rossby_sun_code) so the two branches meet exactly at
-        // Ro = ROSSBY_SATURATION.
         let saturated = -gamma
-            * (self.rossby_sun_code() / ROSSBY_SATURATION).powi(2)
+            * (ROSSBY_SUN / ROSSBY_SATURATION).powi(2)
             * (self.spin / SOLAR_ANGULAR_VELOCITY);
         // Smooth tanh blend between regimes to avoid a discontinuous torque jump at ROSSBY_SATURATION.
         // The hard if/else causes the integrator to straddle the boundary and loop indefinitely
