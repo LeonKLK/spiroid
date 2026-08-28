@@ -102,14 +102,14 @@ impl LoveNumber {
 
     #[allow(clippy::cast_possible_truncation)]
     fn tidal_excitation_frequency_mode_sigma_2mpq(
-        planet: &impl ParticleT,
+        tidal_deformed_body: &impl ParticleT,
         m: u8,
         p: u8,
         q: u8,
     ) -> f64 {
         let pq_fac = f64!(Self::pq_fac(p, q));
         let m = f64!(m);
-        pq_fac * planet.mean_motion() - m * planet.spin()
+        pq_fac * tidal_deformed_body.mean_motion() - m * tidal_deformed_body.spin()
     }
 
     /// Recomputes all the love number values.
@@ -117,8 +117,8 @@ impl LoveNumber {
     pub(crate) fn refresh_cache(
         &mut self,
         time: f64,
-        planet: &impl ParticleT,
-        star: &impl ParticleT,
+        tidal_deformed_body: &impl ParticleT,
+        tidal_perturber: &impl ParticleT,
         particle_type: &ParticleComposition,
         thermal_tide_model: &ThermalTideAtmosphereModel,
         mpq: Mpq,
@@ -138,13 +138,17 @@ impl LoveNumber {
                     k2 = self.k2(m.into(), p.into(), q.into());
                     if k2 == c64(0.0, 0.0) {
                         // Cache miss, compute k2
-                        let w_2lmpq =
-                            Self::tidal_excitation_frequency_mode_sigma_2mpq(planet, m, p, q);
+                        let w_2lmpq = Self::tidal_excitation_frequency_mode_sigma_2mpq(
+                            tidal_deformed_body,
+                            m,
+                            p,
+                            q,
+                        );
                         k2 = Self::compute_k2(
                             time,
                             w_2lmpq,
-                            planet,
-                            star,
+                            tidal_deformed_body,
+                            tidal_perturber,
                             particle_type,
                             thermal_tide_model,
                         )?;
@@ -157,12 +161,12 @@ impl LoveNumber {
         Ok(())
     }
 
-    // Select the love number calculation based on the composition of the planet.
+    // Select the love number calculation based on the composition of the tidally deformed body.
     fn compute_k2(
         time: f64,
         tidal_frequency: f64,
-        planet: &impl ParticleT,
-        star: &impl ParticleT,
+        tidal_deformed_body: &impl ParticleT,
+        tidal_perturber: &impl ParticleT,
         particle_type: &ParticleComposition,
         thermal_tide_model: &ThermalTideAtmosphereModel,
     ) -> Result<Complex<f64>> {
@@ -190,10 +194,14 @@ impl LoveNumber {
 
         // Real part of love number is always negative.
         // Imaginary part of love number is sign dependent on the freqency.
-        let planet_k2 = c64(-k2.re, tidal_frequency.signum() * k2.im);
-        let atmosphere_k2 = thermal_tide_model.imaginary_atmosphere(tidal_frequency, planet, star);
+        let tidal_deformed_body_k2 = c64(-k2.re, tidal_frequency.signum() * k2.im);
+        let atmosphere_k2 = thermal_tide_model.imaginary_atmosphere(
+            tidal_frequency,
+            tidal_deformed_body,
+            tidal_perturber,
+        );
 
-        Ok(planet_k2 + atmosphere_k2)
+        Ok(tidal_deformed_body_k2 + atmosphere_k2)
     }
 }
 
@@ -219,14 +227,16 @@ impl ThermalTideAtmosphereModel {
     fn imaginary_atmosphere(
         &self,
         tidal_frequency: f64,
-        planet: &impl ParticleT,
-        star: &impl ParticleT,
+        tidal_deformed_body: &impl ParticleT,
+        tidal_perturber: &impl ParticleT,
     ) -> f64 {
         match self {
             ThermalTideAtmosphereModel::Disabled => 0.0,
-            ThermalTideAtmosphereModel::Analytic => {
-                Self::imaginary_atmosphere_analytic(tidal_frequency, star, planet)
-            }
+            ThermalTideAtmosphereModel::Analytic => Self::imaginary_atmosphere_analytic(
+                tidal_frequency,
+                tidal_perturber,
+                tidal_deformed_body,
+            ),
             ThermalTideAtmosphereModel::Auclair {
                 surface_temperature,
                 radiative_frequency,
@@ -234,15 +244,15 @@ impl ThermalTideAtmosphereModel {
                 *surface_temperature,
                 *radiative_frequency,
                 tidal_frequency,
-                star,
-                planet,
+                tidal_perturber,
+                tidal_deformed_body,
             ),
             ThermalTideAtmosphereModel::AuclairScaling { surface_pressure } => {
                 Self::imaginary_atmosphere_auclair_scaling(
                     *surface_pressure,
                     tidal_frequency,
-                    star,
-                    planet,
+                    tidal_perturber,
+                    tidal_deformed_body,
                 )
             }
             ThermalTideAtmosphereModel::Leconte {
@@ -252,8 +262,8 @@ impl ThermalTideAtmosphereModel {
                 *thermal_tide_amplitude,
                 *radiative_frequency,
                 tidal_frequency,
-                star,
-                planet,
+                tidal_perturber,
+                tidal_deformed_body,
             ),
         }
     }
@@ -262,8 +272,8 @@ impl ThermalTideAtmosphereModel {
     // Values of physical parameter table 1
     fn imaginary_atmosphere_analytic(
         tidal_frequency: f64,
-        star: &impl ParticleT,
-        planet: &impl ParticleT,
+        tidal_perturber: &impl ParticleT,
+        tidal_deformed_body: &impl ParticleT,
     ) -> f64 {
         // Related to the first adiabatic exponent of the gas.
         let kappa = 0.286;
@@ -278,8 +288,16 @@ impl ThermalTideAtmosphereModel {
         let ra = 191.; // Specific gas constant
         // Imaginary part of the thermal Love number.
         // Auclair-Desrotour 2017b Eq. 5 + 6
-        -(epsilon * alpha * star.luminosity() * planet.semi_major_axis() * kappa)
-            / (5. * star.mass() * ra * surface_temperature * planet.radius())
+        -(epsilon
+            * alpha
+            * tidal_perturber.luminosity()
+            * tidal_deformed_body.semi_major_axis()
+            * kappa)
+            / (5.
+                * tidal_perturber.mass()
+                * ra
+                * surface_temperature
+                * tidal_deformed_body.radius())
             * tidal_frequency
             / (tidal_frequency.powi(2) + omega.powi(2))
     }
@@ -290,8 +308,8 @@ impl ThermalTideAtmosphereModel {
         surface_temperature: f64,
         omega: f64,
         tidal_frequency: f64,
-        star: &impl ParticleT,
-        planet: &impl ParticleT,
+        tidal_perturber: &impl ParticleT,
+        tidal_deformed_body: &impl ParticleT,
     ) -> f64 {
         // Related to the first adiabatic exponent of the gas.
         let kappa = 0.286;
@@ -312,11 +330,11 @@ impl ThermalTideAtmosphereModel {
             * beta
             * alpha
             * epsilon
-            * star.luminosity()
-            * planet.semi_major_axis()
-            / (r_a * surface_temperature * star.mass() * planet.radius());
+            * tidal_perturber.luminosity()
+            * tidal_deformed_body.semi_major_axis()
+            / (r_a * surface_temperature * tidal_perturber.mass() * tidal_deformed_body.radius());
         // Rescaled Radiative frequency
-        let w_0 = omega * (star.luminosity() / SOLAR_LUMINOSITY).powf(0.75);
+        let w_0 = omega * (tidal_perturber.luminosity() / SOLAR_LUMINOSITY).powf(0.75);
         // Maxwell-like frequency dependence
         let q_a = tidal_frequency / (tidal_frequency.powi(2) + w_0.powi(2));
 
@@ -328,8 +346,8 @@ impl ThermalTideAtmosphereModel {
     fn imaginary_atmosphere_auclair_scaling(
         surface_pressure: f64,
         tidal_frequency: f64,
-        star: &impl ParticleT,
-        planet: &impl ParticleT,
+        tidal_perturber: &impl ParticleT,
+        tidal_deformed_body: &impl ParticleT,
     ) -> f64 {
         // Avoid division by zero NaN.
         if tidal_frequency == 0. {
@@ -367,7 +385,11 @@ impl ThermalTideAtmosphereModel {
             let imaginary_delta_pressure_2 = q_0 * 10.0_f64.powf(f_par) * tidal_frequency.signum();
 
             // Imaginary tidal love number associated with conversion factor derived from Leconte et al. 2015
-            Self::imaginary_tidal_love_number_leconte(imaginary_delta_pressure_2, star, planet)
+            Self::imaginary_tidal_love_number_leconte(
+                imaginary_delta_pressure_2,
+                tidal_perturber,
+                tidal_deformed_body,
+            )
         }
     }
 
@@ -376,24 +398,25 @@ impl ThermalTideAtmosphereModel {
         thermal_tide_amplitude: f64,
         radiative_frequency: f64,
         tidal_frequency: f64,
-        star: &impl ParticleT,
-        planet: &impl ParticleT,
+        tidal_perturber: &impl ParticleT,
+        tidal_deformed_body: &impl ParticleT,
     ) -> f64 {
         let tmp = tidal_frequency / radiative_frequency;
         // Maxwell-like frequency dependence
         let q_a = thermal_tide_amplitude * (tmp / (1.0 + tmp.powi(2)));
 
-        Self::imaginary_tidal_love_number_leconte(q_a, star, planet)
+        Self::imaginary_tidal_love_number_leconte(q_a, tidal_perturber, tidal_deformed_body)
     }
 
     // Imaginary part of the thermal Love number defined as Leconte et al. (2015)
     fn imaginary_tidal_love_number_leconte(
         frequency_dependence: f64,
-        star: &impl ParticleT,
-        planet: &impl ParticleT,
+        tidal_perturber: &impl ParticleT,
+        tidal_deformed_body: &impl ParticleT,
     ) -> f64 {
-        -sqrt!(32.0 * PI / 15.0) * (planet.semi_major_axis().powi(3) * planet.radius())
-            / (GRAVITATIONAL * star.mass() * planet.mass())
+        -sqrt!(32.0 * PI / 15.0)
+            * (tidal_deformed_body.semi_major_axis().powi(3) * tidal_deformed_body.radius())
+            / (GRAVITATIONAL * tidal_perturber.mass() * tidal_deformed_body.mass())
             * frequency_dependence
     }
 }
