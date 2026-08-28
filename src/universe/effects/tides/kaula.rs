@@ -1,6 +1,6 @@
 use anyhow::Result;
 use num_complex::Complex;
-use sci_file::DataStore;
+use sci_file::{DataStore, read_json_from_file};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 mod love_number;
@@ -10,6 +10,7 @@ pub use love_number::SpectrumFile;
 use love_number::{LoveNumber, ParticleComposition, ThermalTideAtmosphereModel};
 use polynomials::Polynomials;
 
+use crate::constants::GRAVITATIONAL;
 use crate::universe::particles::{ParticleT, Planet};
 use derive_more::Add;
 
@@ -107,6 +108,43 @@ impl Kaula {
             } => Some((spectrum_file, spin_spec, spectrum_k2)),
             _ => None,
         }
+    }
+
+    /// Loads the love number spectrum of `ParticleComposition::StarConvectiveEnvelope`
+    /// from its `SpectrumFile` (no-op for the other compositions).
+    /// The file stores dimensionless tidal frequencies (omega / `spin_spec`); they are
+    /// converted to rad.s-1 at the reference spin, as expected by `LoveNumber::compute_k2`.
+    pub fn load_spectrum_file(&mut self) -> Result<()> {
+        if let Some((spectrum_file, spin_spec, spectrum_k2)) = self.spectrum_file() {
+            let file: SpectrumFile = read_json_from_file(spectrum_file)?;
+            *spin_spec = file.spin_spec;
+            *spectrum_k2 = file.spectrum;
+            if let DataStore::Interpolate1D(interpolator) = spectrum_k2 {
+                interpolator
+                    .x_vals_mut()
+                    .iter_mut()
+                    .for_each(|x| *x *= file.spin_spec);
+            }
+            spectrum_k2.dimension_check()?;
+        }
+        Ok(())
+    }
+
+    /// Tidal torque exerted on the tidally deformed body by the perturber (kg.m2.s-2).
+    /// Boue & Efroimksy (2019) Eq. 123 and Revol et al. (2023) Eq A.3, i.e. the torque
+    /// whose division by the moment of inertia gives the spin derivative of the deformed
+    /// body (see `planet_spin_derivative` in physics.rs for the planet-role version).
+    /// For the stellar tide, pass the star as `tidal_deformed_body` and the planet as
+    /// `tidal_perturber` and `orbit`; the result feeds `Star::tidal_torque_convective`.
+    pub(crate) fn tidal_torque_on_deformed_body(
+        &self,
+        tidal_deformed_body: &impl ParticleT,
+        tidal_perturber: &impl ParticleT,
+        orbit: &Planet,
+    ) -> f64 {
+        (GRAVITATIONAL * tidal_perturber.mass().powi(2) * tidal_deformed_body.radius().powi(5))
+            / orbit.semi_major_axis().powi(6)
+            * self.summation_of_longitudinal_modes_spin()
     }
 
     /// Roles (see `refresh`): `tidal_deformed_body` provides body quantities,

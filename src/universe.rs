@@ -341,12 +341,11 @@ impl Universe {
         // Recompute star values that depend on planet (tidal and magnetic torque).
         star.refresh_tidal_frequency(planet);
 
-        // Compute the enabled effects dependent on a planet (magnetism, planet tides)
-        star.update_tidal_torque(self.central_body.tides.tidal_torque(star, planet));
-        star.update_magnetic_torque(self.central_body.magnetism.magnetic_torque(planet, star)); // Requires wind torque to be calculated first.
-        star.update_evolved_change_semi_major_axis(self.central_body.wind.wind_torque(), planet);
-
-        if self.orbiting_body.tides.kaula_enabled() {
+        // The planet orbital elements (spin, e, i, angles) are only evolved when kaula
+        // tides are enabled on either body.
+        let planet_kaula = self.orbiting_body.tides.kaula_enabled();
+        let star_kaula = self.central_body.tides.kaula_enabled();
+        if planet_kaula || star_kaula {
             //(spin, eccentricity, inclination, longitude_ascending_node, pericentre_omega, spin_inclination)
             // Invert the exponent of e^2 to normalise the eccentricity.
             planet.refresh_orbital_elements(
@@ -357,16 +356,31 @@ impl Universe {
                 new_state.orbiting_body.pericentre_omega,
                 new_state.orbiting_body.spin_inclination,
             );
-            // Recompute the kaula tidal effects.
-            self.orbiting_body
-                .tides
-                .refresh_kaula(self.time, star, planet)?;
         } else if self.central_body.general_relativity.is_enabled() {
             // General relativity only evolves pericentre_omega
-            // If general relativity and kaula tides on the planet are both enabled,
+            // If general relativity and kaula tides are both enabled,
             // pericentre_omega is updated in `planet.refresh_orbital_elements` for kaula
             planet.pericentre_omega = new_state.orbiting_body.pericentre_omega;
         }
+        // Recompute the kaula tidal effects. Each body has its own `Kaula` instance,
+        // refreshed with its own role assignment (see `Kaula::refresh`).
+        // Planetary tide: planet deformed, star perturber.
+        if planet_kaula {
+            self.orbiting_body
+                .tides
+                .refresh_kaula(self.time, star, planet)?;
+        }
+        // Stellar tide: star deformed, planet perturber. Must precede `tidal_torque`.
+        if star_kaula {
+            self.central_body
+                .tides
+                .refresh_kaula_star(self.time, star, planet)?;
+        }
+
+        // Compute the enabled effects dependent on a planet (magnetism, stellar tides)
+        star.update_tidal_torque(self.central_body.tides.tidal_torque(star, planet));
+        star.update_magnetic_torque(self.central_body.magnetism.magnetic_torque(planet, star)); // Requires wind torque to be calculated first.
+        star.update_evolved_change_semi_major_axis(self.central_body.wind.wind_torque(), planet);
 
         Ok(())
     }

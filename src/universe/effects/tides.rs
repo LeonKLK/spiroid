@@ -27,7 +27,11 @@ impl TidalModel {
                 // requires tidal_frequency
                 constant_time_lag.tidal_torque(star, planet)
             }
-            TidalModel::KaulaTides(_) => todo!(),
+            // Stellar tide with the kaula model: the star is the deformed body.
+            // Requires `refresh_kaula_star` to have been called for the current state.
+            TidalModel::KaulaTides(kaula) => {
+                kaula.tidal_torque_on_deformed_body(star, planet, planet)
+            }
         }
     }
 
@@ -42,9 +46,32 @@ impl TidalModel {
         Ok(())
     }
 
+    /// Refreshes the kaula tides data for the stellar tide: the star is the tidally
+    /// deformed body, the planet the perturber, and the planet carries the orbit.
+    pub(crate) fn refresh_kaula_star(
+        &mut self,
+        time: f64,
+        star: &Star,
+        planet: &Planet,
+    ) -> Result<()> {
+        if let &mut TidalModel::KaulaTides(ref mut kaula) = self {
+            kaula.refresh(time, star, planet, planet)?;
+        }
+
+        Ok(())
+    }
+
     /// Returns `true` if the `TidalModel` is `KaulaTides`.
     pub(crate) fn kaula_enabled(&self) -> bool {
         matches!(&self, TidalModel::KaulaTides(_))
+    }
+
+    /// Returns a reference to the `Kaula` struct if the `TidalModel` is `KaulaTides`.
+    pub fn kaula_get(&self) -> Option<&Kaula> {
+        match self {
+            TidalModel::KaulaTides(kaula) => Some(kaula),
+            _ => None,
+        }
     }
 
     /// Returns a mutable reference to the `Kaula` struct if the `TidalModel` is `KaulaTides`.

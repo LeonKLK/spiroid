@@ -81,6 +81,17 @@ fn main() -> Result<()> {
                 }
             }
 
+            // Load the love number spectrum if kaula tides are enabled on the star (stellar tide).
+            if let Some(kaula) = simulation.system.central_body.tides.kaula_get_mut() {
+                kaula.load_spectrum_file()?;
+                if let ParticleType::Star(star) = &simulation.system.central_body.kind
+                    && let ParticleType::Planet(planet) = &simulation.system.orbiting_body.kind
+                {
+                    // Star is the tidally deformed body, planet the perturber and the orbit.
+                    kaula.initialise_cache(simulation.initial_time, planet, star, planet)?;
+                }
+            }
+
             // Initialise the universe (star, planet, etc).
             simulation.system.initialise(simulation.initial_time)?;
 

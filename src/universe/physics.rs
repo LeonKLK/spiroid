@@ -31,9 +31,21 @@ pub(crate) fn force(
         return Ok(());
     }
 
-    // Constant time lag semi major axis derivative.
-    // Is 0 if tides are disabled on the star.
-    dy.orbiting_body.semi_major_axis = planet_semi_major_axis_13_div_2_derivative(planet, star);
+    // Semi major axis derivative from the torques applied on the star (angular momentum
+    // conservation): magnetism and the constant time lag stellar tide (0 if disabled).
+    // For a kaula stellar tide the torque only evolves the star's spin (see
+    // `star_convective_zone_angular_momentum_derivative`); its effect on the orbit is
+    // taken from the kaula summations below instead, which also carry the eccentricity
+    // terms, so the tidal torque is excluded here to not count it twice.
+    let star_kaula = central_body.tides.kaula_get();
+    dy.orbiting_body.semi_major_axis = match star_kaula {
+        None => planet_semi_major_axis_13_div_2_derivative(planet, star),
+        Some(_) => planet_semi_major_axis_13_div_2_derivative_from_torque(
+            planet,
+            star,
+            star.magnetic_torque,
+        ),
+    };
 
     // Immutable borrow of kaula properties if kaula planet tides enabled.
     // This block is the PLANETARY tide only (`orbiting_body.tides`): the planet is the
@@ -58,6 +70,16 @@ pub(crate) fn force(
             planet_argument_pericentre_derivative(planet, star, kaula);
         dy.orbiting_body.spin_inclination =
             planet_spin_axis_inclination_derivative(planet, star, kaula);
+    }
+
+    // Kaula STELLAR tide (`central_body.tides`): the star is the deformed body.
+    // Coplanar case only: contributes to the semi major axis and eccentricity of the
+    // orbit; the star's spin is evolved through `star.tidal_torque_convective`.
+    // Summed with the planetary tide contributions above (if enabled).
+    if let Some(kaula) = star_kaula {
+        dy.orbiting_body.semi_major_axis +=
+            kaula_star_semi_major_axis_13_div_2_derivative(planet, star, kaula);
+        dy.orbiting_body.eccentricity += kaula_star_eccentricity_derivative(planet, star, kaula);
     }
 
     // General Relativity 1PN apsidal precession.
@@ -112,11 +134,57 @@ fn star_radiative_zone_angular_momentum_derivative(star: &Star) -> f64 {
 // The last line corresponds to the change in semi-major axis from the mass lost in the evolved phases of evolution.
 // evolved_change_semi_major_axis is da/dt so is multiplied by 13/2 a^{11/2} to represent the derivative of a^{13/2}
 pub(crate) fn planet_semi_major_axis_13_div_2_derivative(planet: &Planet, star: &Star) -> f64 {
+    planet_semi_major_axis_13_div_2_derivative_from_torque(
+        planet,
+        star,
+        star.magnetic_torque + star.tidal_torque_convective,
+    )
+}
+
+// Same as `planet_semi_major_axis_13_div_2_derivative` with an explicit torque applied
+// on the star (kg.m2.s-2, including its a^-6 dependency).
+pub(crate) fn planet_semi_major_axis_13_div_2_derivative_from_torque(
+    planet: &Planet,
+    star: &Star,
+    torque_on_star: f64,
+) -> f64 {
     -13. * sqrt!((star.mass + planet.mass) / GRAVITATIONAL)
         * (1. / (star.mass * planet.mass))
         * planet.semi_major_axis.powi(6)
-        * (star.magnetic_torque + star.tidal_torque_convective)
+        * torque_on_star
         + 13. / 2. * planet.semi_major_axis.powf(11. / 2.) * star.evolved_change_semi_major_axis
+}
+
+// Semi-major axis derivative from the kaula STELLAR tide (star = deformed body).
+// `kaula_planet_semi_major_axis_13_div_2_derivative` with the roles of star and planet
+// swapped: radius of the deformed body (star), mass ratio perturber / deformed.
+// For e = 0 and i = 0 this equals the torque route
+// (`planet_semi_major_axis_13_div_2_derivative_from_torque` with
+// `Kaula::tidal_torque_on_deformed_body`), since the spin and semi-major axis
+// summations coincide when only (m, p, q) = (2, 0, 0) contributes.
+pub(crate) fn kaula_star_semi_major_axis_13_div_2_derivative(
+    planet: &Planet,
+    star: &Star,
+    kaula: &Kaula,
+) -> f64 {
+    -13. * sqrt!(GRAVITATIONAL * (star.mass + planet.mass))
+        * (planet.mass / star.mass)
+        * star.radius.powi(5)
+        * kaula.summation_of_longitudinal_modes_semi_major_axis()
+}
+
+// Eccentricity derivative from the kaula STELLAR tide (star = deformed body).
+// `planet_eccentricity_derivative` with the roles of star and planet swapped.
+fn kaula_star_eccentricity_derivative(planet: &Planet, star: &Star, kaula: &Kaula) -> f64 {
+    if planet.eccentricity == 0. {
+        0.
+    } else {
+        -2.0 * sqrt!(GRAVITATIONAL * (star.mass + planet.mass))
+            * (star.radius.powi(5) / planet.semi_major_axis.powf(6.5))
+            * (planet.mass / star.mass)
+            * planet.semi_minor_axis_ratio
+            * kaula.summation_of_longitudinal_modes_eccentricity()
+    }
 }
 
 // Semi-major axis derivative.
