@@ -155,9 +155,10 @@ def create_plot(title, x_label, y_label, subplots, logscale=False):
 def save_plot(title, output_path):
     """Saves the plot to png."""
     # Save the figure as a file.
+    filename = title.lower().replace(" ", "_").replace("\n", ":")
     try:
         plt.savefig(
-            f"{output_path}/{title.lower().replace(' ', '_').replace('\n', ':')}.png",
+            f"{output_path}/{filename}.png",
             dpi=500,
             bbox_inches="tight",
         )
