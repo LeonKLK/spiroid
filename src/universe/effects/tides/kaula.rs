@@ -6,6 +6,7 @@ use std::path::PathBuf;
 mod love_number;
 mod polynomials;
 
+pub use love_number::SpectrumFile;
 use love_number::{LoveNumber, ParticleComposition, ThermalTideAtmosphereModel};
 use polynomials::Polynomials;
 
@@ -97,11 +98,25 @@ impl Kaula {
         }
     }
 
+    pub fn spectrum_file(&mut self) -> Option<(&PathBuf, &mut f64, &mut DataStore<Complex<f64>>)> {
+        match self.particle_type {
+            ParticleComposition::StarConvectiveEnvelope {
+                ref spectrum_file,
+                ref mut spin_spec,
+                ref mut spectrum_k2,
+            } => Some((spectrum_file, spin_spec, spectrum_k2)),
+            _ => None,
+        }
+    }
+
+    /// Roles (see `refresh`): `tidal_deformed_body` provides body quantities,
+    /// `tidal_perturber` the perturbing mass, `orbit` the orbital elements.
     pub fn initialise_cache(
         &mut self,
         time: f64,
         tidal_perturber: &impl ParticleT,
         tidal_deformed_body: &impl ParticleT,
+        orbit: &Planet,
     ) -> Result<()> {
         // Initialise to unreachable values, which forces the caches to be calculated here,
         // reusing the `refresh` function
@@ -110,7 +125,7 @@ impl Kaula {
         self.prev_inclination = f64::NAN;
         self.prev_spin = f64::NAN;
         self.prev_mean_motion = f64::NAN;
-        self.refresh(time, tidal_deformed_body, tidal_perturber)?;
+        self.refresh(time, tidal_deformed_body, tidal_perturber, orbit)?;
         // No longer NAN here...
 
         Ok(())
@@ -131,46 +146,53 @@ impl Kaula {
     }
 
     #[allow(clippy::float_cmp)]
-    fn eccentricity_changed(&self, tidal_deformed_body: &impl ParticleT) -> bool {
-        self.prev_eccentricity != tidal_deformed_body.eccentricity()
+    fn eccentricity_changed(&self, orbit: &Planet) -> bool {
+        self.prev_eccentricity != orbit.eccentricity()
     }
 
     #[allow(clippy::float_cmp)]
-    fn inclination_changed(&self, tidal_deformed_body: &impl ParticleT) -> bool {
-        self.prev_inclination != tidal_deformed_body.inclination()
+    fn inclination_changed(&self, orbit: &Planet) -> bool {
+        self.prev_inclination != orbit.inclination()
     }
 
-    fn refresh_polynomials(&mut self, tidal_deformed_body: &impl ParticleT) {
-        if self.eccentricity_changed(tidal_deformed_body) {
+    fn refresh_polynomials(&mut self, orbit: &Planet) {
+        if self.eccentricity_changed(orbit) {
             self.polynomials
-                .refresh_eccentricity_cache(tidal_deformed_body.eccentricity());
+                .refresh_eccentricity_cache(orbit.eccentricity());
         }
-        if self.inclination_changed(tidal_deformed_body) {
+        if self.inclination_changed(orbit) {
             self.polynomials
-                .refresh_inclination_cache(tidal_deformed_body.inclination());
+                .refresh_inclination_cache(orbit.inclination());
         }
     }
 
     // Save the parameters for comparison during the next time point.
-    fn save_parameters(&mut self, tidal_deformed_body: &impl ParticleT) {
-        self.prev_eccentricity = tidal_deformed_body.eccentricity();
-        self.prev_inclination = tidal_deformed_body.inclination();
-        self.prev_mean_motion = tidal_deformed_body.mean_motion();
+    fn save_parameters(&mut self, tidal_deformed_body: &impl ParticleT, orbit: &Planet) {
+        self.prev_eccentricity = orbit.eccentricity();
+        self.prev_inclination = orbit.inclination();
+        self.prev_mean_motion = orbit.mean_motion();
         self.prev_spin = tidal_deformed_body.spin();
     }
 
     // Only recalculate if any of the values used in the computation of k2 changed.
     #[allow(clippy::float_cmp)]
-    fn love_number_recalculation_needed(&self, tidal_deformed_body: &impl ParticleT) -> bool {
-        self.prev_mean_motion != tidal_deformed_body.mean_motion()
-            || self.prev_spin != tidal_deformed_body.spin()
+    fn love_number_recalculation_needed(
+        &self,
+        tidal_deformed_body: &impl ParticleT,
+        orbit: &Planet,
+    ) -> bool {
+        self.prev_mean_motion != orbit.mean_motion() || self.prev_spin != tidal_deformed_body.spin()
     }
 
     // Only recalculate if any of the values used in the computation of the polynomials changed.
-    fn summation_recalculation_needed(&self, tidal_deformed_body: &impl ParticleT) -> bool {
-        self.eccentricity_changed(tidal_deformed_body)
-            || self.inclination_changed(tidal_deformed_body)
-            || self.love_number_recalculation_needed(tidal_deformed_body)
+    fn summation_recalculation_needed(
+        &self,
+        tidal_deformed_body: &impl ParticleT,
+        orbit: &Planet,
+    ) -> bool {
+        self.eccentricity_changed(orbit)
+            || self.inclination_changed(orbit)
+            || self.love_number_recalculation_needed(tidal_deformed_body, orbit)
     }
 
     fn refresh_summation(
@@ -178,15 +200,17 @@ impl Kaula {
         time: f64,
         tidal_deformed_body: &impl ParticleT,
         tidal_perturber: &impl ParticleT,
+        orbit: &Planet,
         mpq: Mpq,
         summation: &mut Summation,
     ) -> Result<()> {
         // Only recalculate if any of the values used in the computation of k2 changed.
-        if self.love_number_recalculation_needed(tidal_deformed_body) {
+        if self.love_number_recalculation_needed(tidal_deformed_body, orbit) {
             self.love_number.refresh_cache(
                 time,
                 tidal_deformed_body,
                 tidal_perturber,
+                orbit,
                 &self.particle_type,
                 &self.atmosphere_model,
                 mpq,
@@ -194,13 +218,13 @@ impl Kaula {
         }
 
         // Only recalculate if inclination or eccentricity changed.
-        if self.summation_recalculation_needed(tidal_deformed_body) {
+        if self.summation_recalculation_needed(tidal_deformed_body, orbit) {
             summation.imaginary_mfactor = self.sum_over_m_imaginary_mfactor(mpq);
             summation.imaginary_qfactor = self.sum_over_m_imaginary_qfactor(mpq);
 
-            if tidal_deformed_body.eccentricity() != 0.0 {
+            if orbit.eccentricity() != 0.0 {
                 summation.imaginary_eccentricity =
-                    self.sum_over_m_imaginary_eccentricity(tidal_deformed_body, mpq);
+                    self.sum_over_m_imaginary_eccentricity(orbit, mpq);
                 summation.real_2pq_dt_2mp = self.sum_over_m_real(
                     &self.polynomials.eccentricity_2pq_squared_derivative,
                     &self.polynomials.inclination_2mp_squared,
@@ -208,9 +232,7 @@ impl Kaula {
                 );
             }
 
-            if tidal_deformed_body.inclination() != 0.0
-                && tidal_deformed_body.spin_inclination() != 0.0
-            {
+            if orbit.inclination() != 0.0 && tidal_deformed_body.spin_inclination() != 0.0 {
                 summation.imaginary_pfactor = self.sum_over_m_imaginary_pfactor(mpq);
                 summation.real_2pq_2mp_dt = self.sum_over_m_real(
                     &self.polynomials.eccentricity_2pq_squared,
@@ -220,11 +242,9 @@ impl Kaula {
             }
         }
 
-        if tidal_deformed_body.inclination() != 0.0
-            && sin!(tidal_deformed_body.inclination()) != 0.0
-        {
+        if orbit.inclination() != 0.0 && sin!(orbit.inclination()) != 0.0 {
             summation.imaginary_inclination =
-                self.sum_over_m_imaginary_inclination(tidal_deformed_body, mpq);
+                self.sum_over_m_imaginary_inclination(tidal_deformed_body, orbit, mpq);
         }
         Ok(())
     }
@@ -232,16 +252,27 @@ impl Kaula {
     // All the calculations using the polynomials and love number are performed here
     // and stored in the `sum_over_xxx` caches.
     // The caches are used when the derivitaves are calculated for each keplerian element.
+    //
+    // Three roles:
+    // - `tidal_deformed_body`: the body raising the tidal bulge (planet for the planetary
+    //   tide, star for the stellar tide). Provides spin, radius, mass, moment of inertia
+    //   and spin inclination.
+    // - `tidal_perturber`: the body raising the tide (mass, luminosity).
+    // - `orbit`: the body carrying the orbital elements (mean motion, semi-major axis,
+    //   eccentricity, inclination, reduced mass). Always the planet, since the orbit is
+    //   stored on the planet regardless of which body is deformed.
+    // For the planetary tide `tidal_deformed_body` and `orbit` are the same planet.
     pub(crate) fn refresh(
         &mut self,
         time: f64,
         tidal_deformed_body: &impl ParticleT,
         tidal_perturber: &impl ParticleT,
+        orbit: &Planet,
     ) -> Result<()> {
-        self.refresh_polynomials(tidal_deformed_body);
-        let (q_min, q_max) = Self::bound_q_by_eccentricity(tidal_deformed_body.eccentricity());
+        self.refresh_polynomials(orbit);
+        let (q_min, q_max) = Self::bound_q_by_eccentricity(orbit.eccentricity());
 
-        if tidal_deformed_body.inclination() <= 1e-8 {
+        if orbit.inclination() <= 1e-8 {
             // If inclination is close to zero, only compute
             // m = 0, p = 1 and m = 2, p = 0
             let mpq_01q = Mpq {
@@ -267,6 +298,7 @@ impl Kaula {
                 time,
                 tidal_deformed_body,
                 tidal_perturber,
+                orbit,
                 mpq_01q,
                 &mut summation_01q,
             )?;
@@ -276,6 +308,7 @@ impl Kaula {
                 time,
                 tidal_deformed_body,
                 tidal_perturber,
+                orbit,
                 mpq_20q,
                 &mut summation_20q,
             )?;
@@ -296,13 +329,14 @@ impl Kaula {
                 time,
                 tidal_deformed_body,
                 tidal_perturber,
+                orbit,
                 mpq,
                 &mut summation,
             )?;
             self.summation = summation;
         }
         //        panic!();
-        self.save_parameters(tidal_deformed_body);
+        self.save_parameters(tidal_deformed_body, orbit);
         Ok(())
     }
 
@@ -330,12 +364,8 @@ impl Kaula {
     #[allow(clippy::cast_possible_wrap)]
     // Summation over longitudinal modes m for the computation of the eccentricity derivative.
     // Boue & Efroimksy (2019) Eq 117 and Revol et al. (2023) Eq A.3
-    fn sum_over_m_imaginary_eccentricity(
-        &self,
-        tidal_deformed_body: &impl ParticleT,
-        mpq: Mpq,
-    ) -> f64 {
-        let semi_minor_axis_ratio = sqrt!(1. - tidal_deformed_body.eccentricity().powi(2));
+    fn sum_over_m_imaginary_eccentricity(&self, orbit: &Planet, mpq: Mpq) -> f64 {
+        let semi_minor_axis_ratio = sqrt!(1. - orbit.eccentricity().powi(2));
 
         self.polynomials
             .inclination_2mp_squared
@@ -385,16 +415,16 @@ impl Kaula {
     fn sum_over_m_imaginary_inclination(
         &self,
         tidal_deformed_body: &impl ParticleT,
+        orbit: &Planet,
         mpq: Mpq,
     ) -> f64 {
-        let semi_minor_axis_ratio = sqrt!(1. - tidal_deformed_body.eccentricity().powi(2));
+        let semi_minor_axis_ratio = sqrt!(1. - orbit.eccentricity().powi(2));
 
-        let term1 = (tidal_deformed_body.reduced_mass()
-            * tidal_deformed_body.mean_motion().powi(2)
-            * tidal_deformed_body.semi_major_axis().powi(2))
-            / (tidal_deformed_body.moment_of_inertia() * tidal_deformed_body.spin());
-        let term3 = tidal_deformed_body.mean_motion() / semi_minor_axis_ratio;
-        let cos_inc = cos!(tidal_deformed_body.inclination());
+        let term1 =
+            (orbit.reduced_mass() * orbit.mean_motion().powi(2) * orbit.semi_major_axis().powi(2))
+                / (tidal_deformed_body.moment_of_inertia() * tidal_deformed_body.spin());
+        let term3 = orbit.mean_motion() / semi_minor_axis_ratio;
+        let cos_inc = cos!(orbit.inclination());
 
         self.polynomials
             .inclination_2mp_squared
@@ -429,6 +459,23 @@ impl Kaula {
             .sum::<f64>()
     }
 
+    // TODO (stellar tide, non-coplanar case):
+    // The four summations below (longitude of ascending node, spin axis inclination,
+    // pericentre eccentricity/inclination) take a `&Planet` and read from it BOTH the
+    // deformed-body quantities (`moment_of_inertia`, `spin`, `tan_spin_inc`) AND the
+    // orbital quantities (`tan_inc`, `sin_inc`, `sin_lan`, `cos_lan`, `mean_motion`,
+    // `semi_major_axis`, `semi_minor_axis_ratio`, `reduced_mass`). This is only correct
+    // when the planet is the tidally deformed body. When the star is the deformed body,
+    // the spin-axis terms refer to the star, which has no `spin_inclination` /
+    // `longitude_ascending_node` state (its spin axis is the reference frame, see
+    // `Star::spin_inclination`), so `1 / (I * spin * tan_spin_inc)` is not defined as-is.
+    // These functions must be split into (tidal_deformed_body, orbit) roles, like
+    // `sum_over_m_imaginary_inclination`, once the non-coplanar stellar tide is needed.
+    //
+    // For now the coplanar case is sufficient: with `inclination == 0` and
+    // `spin_inclination == 0` none of these four functions is ever called (see the gates
+    // in `physics.rs`), and only `summation_of_longitudinal_modes_{semi_major_axis, spin,
+    // eccentricity}` are used, which are argument-free and role-agnostic.
     fn summation_of_longitudinal_modes_triple_common(
         &self,
         term1: f64,

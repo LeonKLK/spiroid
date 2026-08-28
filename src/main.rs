@@ -1,7 +1,9 @@
 use anyhow::Result;
 use rayon::prelude::*;
 use sci_file::{DataStore, read_csv_rows_from_file, read_json_from_file};
-use spiroid_lib::{ParticleType, SECONDS_IN_YEAR, Simulation, StarCsv, Universe, UniverseIntegral};
+use spiroid_lib::{
+    ParticleType, SECONDS_IN_YEAR, Simulation, SpectrumFile, StarCsv, Universe, UniverseIntegral,
+};
 
 fn main() -> Result<()> {
     // Parse the command line arguments into one (or more) simulations.
@@ -56,11 +58,26 @@ fn main() -> Result<()> {
                         }
                         liquid_k2.dimension_check()?;
                     }
+                    // Stellar convective envelope (dynamical tide of the star)
+                    if let Some((spectrum_file, spin_spec, spectrum_k2)) = kaula.spectrum_file() {
+                        let file: SpectrumFile = read_json_from_file(spectrum_file)?;
+                        *spin_spec = file.spin_spec;
+                        *spectrum_k2 = file.spectrum;
+                        if let DataStore::Interpolate1D(interpolator) = spectrum_k2 {
+                            // The file stores dimensionless tidal frequencies (omega / spin_spec);
+                            // convert to rad.s-1 at the reference spin, as expected by `compute_k2`.
+                            interpolator
+                                .x_vals_mut()
+                                .iter_mut()
+                                .for_each(|x| *x *= file.spin_spec);
+                        }
+                        spectrum_k2.dimension_check()?;
+                    }
                 }
                 if let ParticleType::Star(star) = &simulation.system.central_body.kind
                     && let ParticleType::Planet(planet) = &simulation.system.orbiting_body.kind
                 {
-                    kaula.initialise_cache(simulation.initial_time, star, planet)?;
+                    kaula.initialise_cache(simulation.initial_time, star, planet, planet)?;
                 }
             }
 

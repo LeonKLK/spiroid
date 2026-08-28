@@ -36,6 +36,14 @@ pub(crate) fn force(
     dy.orbiting_body.semi_major_axis = planet_semi_major_axis_13_div_2_derivative(planet, star);
 
     // Immutable borrow of kaula properties if kaula planet tides enabled.
+    // This block is the PLANETARY tide only (`orbiting_body.tides`): the planet is the
+    // deformed body and all `planet_*_derivative` functions below evolve the planet's
+    // spin and orbit. A Kaula STELLAR tide (`central_body.tides`) enters through
+    // `star.tidal_torque_convective` instead (see `TidalModel::tidal_torque`), and is
+    // independent of this block.
+    // TODO (stellar tide, non-coplanar): the inclination / node / pericentre / spin-axis
+    // derivatives here are planet-only; see the TODO above
+    // `Kaula::summation_of_longitudinal_modes_triple_common`. Coplanar is fine for now.
     if let TidalModel::KaulaTides(ref kaula) = orbiting_body.tides {
         // Sum the semi major axis derivative to account for both CTL star tide (if enabled) and Kaula planet tide.
         dy.orbiting_body.semi_major_axis +=

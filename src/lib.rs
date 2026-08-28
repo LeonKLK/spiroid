@@ -8,7 +8,7 @@ pub use simulation::{Simulation, System};
 mod universe;
 
 use universe::physics::force;
-pub use universe::{ParticleType, Planet, Star, StarCsv, Universe, UniverseIntegral};
+pub use universe::{ParticleType, Planet, SpectrumFile, Star, StarCsv, Universe, UniverseIntegral};
 
 impl System<UniverseIntegral> for Universe {
     // This `derive` function is called by the integrator.

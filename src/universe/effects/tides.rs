@@ -1,5 +1,5 @@
 pub(crate) mod kaula;
-pub use kaula::Kaula;
+pub use kaula::{Kaula, SpectrumFile};
 
 pub(crate) mod constant_time_lag;
 pub use constant_time_lag::ConstantTimeLag;
@@ -32,9 +32,11 @@ impl TidalModel {
     }
 
     /// Refreshes the kaula tides data (love number, eccentricity and inclination polynomials)
+    /// for the planetary tide: the planet is the tidally deformed body, the star the
+    /// perturber, and the planet also carries the orbit.
     pub(crate) fn refresh_kaula(&mut self, time: f64, star: &Star, planet: &Planet) -> Result<()> {
         if let &mut TidalModel::KaulaTides(ref mut kaula) = self {
-            kaula.refresh(time, planet, star)?;
+            kaula.refresh(time, planet, star, planet)?;
         }
 
         Ok(())

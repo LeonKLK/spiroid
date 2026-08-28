@@ -115,6 +115,7 @@ fn _solid() {
         TEST_TIME,
         &planet,
         &star,
+        &planet,
         &particle_type,
         &ThermalTideAtmosphereModel::Disabled,
         mpq,

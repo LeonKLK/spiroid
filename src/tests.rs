@@ -53,12 +53,27 @@ fn test_simulation(simulation: impl AsRef<Path>) -> Universe {
                 }
                 liquid_k2.dimension_check().unwrap();
             }
+            // Stellar convective envelope (dynamical tide of the star)
+            if let Some((spectrum_file, spin_spec, spectrum_k2)) = kaula.spectrum_file() {
+                let file: SpectrumFile = read_json_from_file(spectrum_file).unwrap();
+                *spin_spec = file.spin_spec;
+                *spectrum_k2 = file.spectrum;
+                if let DataStore::Interpolate1D(interpolator) = spectrum_k2 {
+                    // The file stores dimensionless tidal frequencies (omega / spin_spec);
+                    // convert to rad.s-1 at the reference spin, as expected by `compute_k2`.
+                    interpolator
+                        .x_vals_mut()
+                        .iter_mut()
+                        .for_each(|x| *x *= file.spin_spec);
+                }
+                spectrum_k2.dimension_check().unwrap();
+            }
         }
         if let ParticleType::Star(star) = &simulation.system.central_body.kind
             && let ParticleType::Planet(planet) = &simulation.system.orbiting_body.kind
         {
             kaula
-                .initialise_cache(simulation.initial_time, star, planet)
+                .initialise_cache(simulation.initial_time, star, planet, planet)
                 .unwrap();
         }
     }

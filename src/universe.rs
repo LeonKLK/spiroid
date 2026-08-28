@@ -2,7 +2,7 @@ pub(crate) mod effects;
 pub(crate) mod particles;
 pub(crate) mod physics;
 
-pub use effects::Kaula;
+pub use effects::{Kaula, SpectrumFile};
 pub use particles::{Particle, ParticleType, Planet, Star, StarCsv};
 
 use anyhow::Result;
