@@ -53,9 +53,10 @@ pub(crate) fn force(
     // spin and orbit. A Kaula STELLAR tide (`central_body.tides`) enters through
     // `star.tidal_torque_convective` instead (see `TidalModel::tidal_torque`), and is
     // independent of this block.
-    // TODO (stellar tide, non-coplanar): the inclination / node / pericentre / spin-axis
-    // derivatives here are planet-only; see the TODO above
-    // `Kaula::summation_of_longitudinal_modes_triple_common`. Coplanar is fine for now.
+    // TODO (stellar tide, non-coplanar): the inclination / node / spin-axis derivatives
+    // and the inclination part of the pericentre derivative here are planet-only; see the
+    // TODO above `Kaula::summation_of_longitudinal_modes_triple_common`. Coplanar is fine
+    // for now.
     if let TidalModel::KaulaTides(ref kaula) = orbiting_body.tides {
         // Sum the semi major axis derivative to account for both CTL star tide (if enabled) and Kaula planet tide.
         dy.orbiting_body.semi_major_axis +=
@@ -73,13 +74,16 @@ pub(crate) fn force(
     }
 
     // Kaula STELLAR tide (`central_body.tides`): the star is the deformed body.
-    // Coplanar case only: contributes to the semi major axis and eccentricity of the
-    // orbit; the star's spin is evolved through `star.tidal_torque_convective`.
+    // Coplanar case only: contributes to the semi major axis, eccentricity and argument
+    // of pericentre of the orbit; the star's spin is evolved through
+    // `star.tidal_torque_convective`.
     // Summed with the planetary tide contributions above (if enabled).
     if let Some(kaula) = star_kaula {
         dy.orbiting_body.semi_major_axis +=
             kaula_star_semi_major_axis_13_div_2_derivative(planet, star, kaula);
         dy.orbiting_body.eccentricity += kaula_star_eccentricity_derivative(planet, star, kaula);
+        dy.orbiting_body.pericentre_omega +=
+            kaula_star_argument_pericentre_derivative(planet, star, kaula);
     }
 
     // General Relativity 1PN apsidal precession.
@@ -184,6 +188,23 @@ fn kaula_star_eccentricity_derivative(planet: &Planet, star: &Star, kaula: &Kaul
             * (planet.mass / star.mass)
             * planet.semi_minor_axis_ratio
             * kaula.summation_of_longitudinal_modes_eccentricity()
+    }
+}
+
+// Argument of pericentre derivative from the kaula STELLAR tide (star = deformed body).
+// `planet_argument_pericentre_derivative` with the roles of star and planet swapped:
+// prefactor G M_planet^2 R_star^5 / a^6 (the torque prefactor of the deformed star).
+// Coplanar case only: the eccentricity part (Boue & Efroimksy (2019) Eq. 120, Revol et
+// al. (2023) Eq A.11) only reads orbital quantities and is role-agnostic. The inclination
+// part needs the stellar spin axis and is not implemented (see the TODO above
+// `Kaula::summation_of_longitudinal_modes_triple_common`); it is zero in the coplanar case.
+fn kaula_star_argument_pericentre_derivative(planet: &Planet, star: &Star, kaula: &Kaula) -> f64 {
+    if planet.eccentricity == 0. {
+        0.
+    } else {
+        ((GRAVITATIONAL * planet.mass.powi(2) * star.radius.powi(5))
+            / planet.semi_major_axis.powi(6))
+            * kaula.summation_of_longitudinal_modes_pericentre_eccentricity(planet)
     }
 }
 

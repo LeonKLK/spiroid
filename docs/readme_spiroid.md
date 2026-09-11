@@ -308,6 +308,69 @@ src
 - universe/particles/star.rs: `Star` model. 
 - universe/particles/star/star_csv.rs: Structure of the stellar evolution CSV from `STAREVOL` or `MESA` models.
 
+# Planned: angular momentum budget check
+
+A check that the integrated system conserves angular momentum, up to the known external
+sinks. Not implemented yet; the plan is recorded here.
+
+## Budget
+
+After the disk has dissipated, the quantity that should stay constant is
+
+$$L_\star + L_{\rm orb} + L_{p} + L_{\rm lost}(t) = \text{const}$$
+
+- `L_star = L_rad + L_conv`, taken directly from the two integrated angular momenta of the
+  star (not `I * spin`), so that moment-of-inertia changes from stellar evolution drop out.
+- `L_orb = mu * sqrt(G (M_star + M_planet) a (1 - e^2))` in the coplanar case.
+- `L_p = I_planet * spin_planet`, only relevant when the planet Kaula tide is enabled.
+- `L_lost` is the running integral of the external torques (see below).
+
+## Internal versus external torques
+
+Internal exchanges cancel by construction and need no bookkeeping: core-envelope coupling,
+envelope-to-core mass transfer, the magnetic torque (it appears in both the star and the
+orbit derivative) and the constant time lag tidal torque (same).
+
+External sinks: the wind torque and the evolved wind torque. Mass loss also changes
+`L_orb` through `mu` and `M_star` even at fixed `a`; negligible on the main sequence, but
+it needs its own term in evolved phases (second phase of this work).
+
+## Implementation steps
+
+1. Integrate the loss inside the ODE, not in post-processing. Add one field to the star's
+   integrated state (`StarIntegral`), the angular momentum carried away by the wind, with
+   derivative equal to minus the wind torques. The integrator then tracks it with the same
+   tolerance as everything else. Summing output points with a trapezoid rule would be
+   limited by the output cadence and would hide integrator error behind quadrature error.
+   Touches the star integral struct (zero and denormal checks), `physics::force` and the
+   output writer.
+2. Post-process: a script reads the output, forms the four terms and plots the residual
+   relative to the initial orbital angular momentum. Target: the integrator tolerance
+   (1e-10 relative). Anything larger is a missing term or a real inconsistency.
+3. Derivative-level unit test for the Kaula stellar tide. The stellar tide uses two
+   channels: the torque (`Kaula::tidal_torque_on_deformed_body`) for the star spin and the
+   summations for `a` and `e`. Conservation demands that the torque equals minus
+   `dL_orb/dt` built from the `a^6.5` and `e^2` derivatives. In the coplanar case this
+   should hold mode by mode: for `m = 2, p = 0` and `m = 0, p = 1` the spin weight `m`
+   equals the orbital weight `2 - 2p`. A single-state test with `e != 0` should therefore
+   pass to floating-point precision. If it does not, the two channels disagree, and the
+   integrated run would only confirm that later and more expensively. Write the same test
+   for the planet Kaula tide with zero inclination.
+4. Run a ladder of cases, each isolating one effect:
+   - No wind, no magnetism, CTL star tide, `e = 0`: sanity, should be exact.
+   - Kaula star tide, `e = 0`: torque against summation.
+   - Kaula star tide, `e != 0`: the real two-channel test.
+   - Planet Kaula tide, `e != 0`, coplanar.
+   - Wind on: the residual should vanish once `L_lost` is included.
+   - Magnetism on: internal, should stay exact.
+
+## Scope limits
+
+- Inclined orbits need the vector budget with the planet spin axis; later.
+- Evolved phases with strong mass loss: second phase.
+- The disk phase is excluded, since the disk holds the star's spin and acts as an
+  unmodelled source.
+
 # Known issues and limitations
 
 - Due to issues with the integrator, certain simulations can become stuck in a seeminly endless loop when the timestep becomes too small. These have been observed with simulations enabling Kaula tides on the planet.

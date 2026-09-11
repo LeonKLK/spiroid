@@ -343,14 +343,26 @@ impl Universe {
 
         // The planet orbital elements (spin, e, i, angles) are only evolved when kaula
         // tides are enabled on either body.
+        // TODO (check): enabling the kaula STELLAR tide alone (planet tides disabled) also
+        // takes this branch. Compared to a CTL-only run (where the eccentricity stays
+        // frozen at its input value and this branch is skipped) this means:
+        // - the eccentricity is read back from the integrated e^2 (needed, the stellar
+        //   tide writes de^2/dt) and snapped to 0 below 1e-8,
+        // - the planet spin is read back although no derivative writes it, and is snapped
+        //   to the mean motion when within 1e-9 of synchronous,
+        // - the inclination and spin inclination are zeroed below 1e-4 degrees.
+        // Check that these snaps do not bias a CTL vs kaula stellar tide comparison.
         let planet_kaula = self.orbiting_body.tides.kaula_enabled();
         let star_kaula = self.central_body.tides.kaula_enabled();
         if planet_kaula || star_kaula {
             //(spin, eccentricity, inclination, longitude_ascending_node, pericentre_omega, spin_inclination)
             // Invert the exponent of e^2 to normalise the eccentricity.
+            // The integrated e^2 can overshoot slightly below zero when the tide circularises
+            // the orbit (de^2/dt is large and negative right before e reaches 0); clamp it so
+            // the eccentricity is 0 instead of NaN (which panics in `Kaula::bound_q_by_eccentricity`).
             planet.refresh_orbital_elements(
                 new_state.orbiting_body.spin,
-                sqrt!(new_state.orbiting_body.eccentricity),
+                sqrt!(new_state.orbiting_body.eccentricity.max(0.0)),
                 new_state.orbiting_body.inclination,
                 new_state.orbiting_body.longitude_ascending_node,
                 new_state.orbiting_body.pericentre_omega,

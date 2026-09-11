@@ -498,8 +498,8 @@ impl Kaula {
     }
 
     // TODO (stellar tide, non-coplanar case):
-    // The four summations below (longitude of ascending node, spin axis inclination,
-    // pericentre eccentricity/inclination) take a `&Planet` and read from it BOTH the
+    // Three of the summations below (longitude of ascending node, spin axis inclination,
+    // pericentre inclination) take a `&Planet` and read from it BOTH the
     // deformed-body quantities (`moment_of_inertia`, `spin`, `tan_spin_inc`) AND the
     // orbital quantities (`tan_inc`, `sin_inc`, `sin_lan`, `cos_lan`, `mean_motion`,
     // `semi_major_axis`, `semi_minor_axis_ratio`, `reduced_mass`). This is only correct
@@ -511,9 +511,11 @@ impl Kaula {
     // `sum_over_m_imaginary_inclination`, once the non-coplanar stellar tide is needed.
     //
     // For now the coplanar case is sufficient: with `inclination == 0` and
-    // `spin_inclination == 0` none of these four functions is ever called (see the gates
-    // in `physics.rs`), and only `summation_of_longitudinal_modes_{semi_major_axis, spin,
-    // eccentricity}` are used, which are argument-free and role-agnostic.
+    // `spin_inclination == 0` none of these three functions is ever called (see the gates
+    // in `physics.rs`). The summations used by the stellar tide are
+    // `summation_of_longitudinal_modes_{semi_major_axis, spin, eccentricity}`, which are
+    // argument-free, and `summation_of_longitudinal_modes_pericentre_eccentricity`, which
+    // only reads orbital quantities; all four are role-agnostic.
     fn summation_of_longitudinal_modes_triple_common(
         &self,
         term1: f64,
@@ -575,15 +577,17 @@ impl Kaula {
 
     // Summation over longitudinal modes m for the computation of the eccentricity dependent longitude of pericentre derivative.
     // Boue & Efroimksy (2019) Eq 120 and Revol et al. (2023) Eq A.11
+    // Only orbital quantities are read, so this is valid for both the planetary tide
+    // (planet deformed) and the stellar tide (star deformed); `orbit` is always the planet.
     pub(crate) fn summation_of_longitudinal_modes_pericentre_eccentricity(
         &self,
-        tidal_deformed_body: &Planet,
+        orbit: &Planet,
     ) -> f64 {
-        let term2 = tidal_deformed_body.semi_minor_axis_ratio
-            / (tidal_deformed_body.mean_motion
-                * tidal_deformed_body.semi_major_axis.powi(2)
-                * tidal_deformed_body.eccentricity
-                * tidal_deformed_body.reduced_mass);
+        let term2 = orbit.semi_minor_axis_ratio
+            / (orbit.mean_motion
+                * orbit.semi_major_axis.powi(2)
+                * orbit.eccentricity
+                * orbit.reduced_mass);
         self.summation.real_2pq_dt_2mp * 0.5 * term2
     }
 

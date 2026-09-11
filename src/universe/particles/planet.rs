@@ -167,7 +167,16 @@ impl Planet {
             self.spin = spin;
         }
         // Invert the exponent of e^2 to normalise the eccentricity.
-        self.eccentricity = eccentricity;
+        // A circularised orbit reaches e = 0 only asymptotically (e^2 decays geometrically);
+        // below 1e-8 (the smallest eccentricity that changes the Kaula summation, see
+        // `Kaula::bound_q_by_eccentricity`) the value is snapped to 0 so that the
+        // eccentricity derivatives are skipped instead of being evaluated on a denormal e,
+        // which produced NaN derivatives ("Houston, we have a NaN") at e ~ 1e-135.
+        self.eccentricity = if eccentricity < 1e-8 {
+            0.0
+        } else {
+            eccentricity
+        };
         self.longitude_ascending_node = longitude_ascending_node;
         self.pericentre_omega = pericentre_omega;
         // If inclination < 1e-4 degrees, it is close to zero

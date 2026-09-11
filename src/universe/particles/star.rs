@@ -310,6 +310,7 @@ impl Star {
     }
 
     // Update the tidal torque.
+    // This is specifically for stellar tide with Kaula model.
     pub(crate) fn update_tidal_torque(&mut self, tidal_torque_convective: f64) {
         self.tidal_torque_convective = tidal_torque_convective;
     }

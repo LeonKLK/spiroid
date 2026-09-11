@@ -14,6 +14,7 @@ use crate::universe::particles::planet::tests::{
 use crate::universe::particles::star::tests::{test_star, test_star_evolving};
 use crate::universe::tests::{DISK_IS_DISSIPATED, TEST_DISK_LIFETIME, TEST_TIME};
 use crate::universe::{Particle, ParticleType};
+use assert_approx_eq::assert_approx_eq;
 use pretty_assertions::assert_eq;
 
 #[test]
@@ -357,6 +358,45 @@ fn _planet_argument_pericentre_derivative() {
     let result = planet_argument_pericentre_derivative(&planet, &star, &kaula);
     let expected = -42049166.159453586;
     assert_eq!(expected, result);
+}
+
+#[test]
+fn _kaula_star_argument_pericentre_derivative() {
+    let mut star = test_star();
+    let planet = test_planet_kaula();
+    star.refresh_tidal_frequency(&planet);
+    let kaula = test_kaula();
+    let result = kaula_star_argument_pericentre_derivative(&planet, &star, &kaula);
+    let expected = -784585.0652653058;
+    assert_eq!(expected, result);
+}
+
+// In the coplanar case the stellar and planetary pericentre derivatives only differ by
+// the torque prefactor of the deformed body: M_perturber^2 R_deformed^5.
+#[test]
+fn _kaula_star_argument_pericentre_derivative_symmetric() {
+    let mut star = test_star();
+    let mut planet = test_planet_kaula();
+    // Coplanar: inclination and spin inclination to zero, keep spin, e and the angles.
+    planet.refresh_orbital_elements(
+        planet.spin,
+        planet.eccentricity,
+        0.0,
+        planet.longitude_ascending_node,
+        planet.pericentre_omega,
+        0.0,
+    );
+    star.refresh_tidal_frequency(&planet);
+    let kaula = test_kaula();
+
+    let star_role = kaula_star_argument_pericentre_derivative(&planet, &star, &kaula);
+    let planet_role = planet_argument_pericentre_derivative(&planet, &star, &kaula);
+    assert_ne!(0.0, star_role);
+    assert_approx_eq!(
+        star_role * star.mass.powi(2) * planet.radius.powi(5),
+        planet_role * planet.mass.powi(2) * star.radius.powi(5),
+        abs!(planet_role * planet.mass.powi(2) * star.radius.powi(5)) * 1e-12
+    );
 }
 
 #[test]
