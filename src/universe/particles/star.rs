@@ -528,6 +528,15 @@ impl Star {
             * (self.convective_turnover_time / self.convective_turnover_time_sun).powi(2)
             * (self.spin / SOLAR_ANGULAR_VELOCITY).powi(3);
         // Matt et al. 2015, Eq. 7 (saturated regime, Ro <= Ro_sat)
+        // ROSSBY_SUN and ROSSBY_SATURATION are the fixed values of Ardestani et al. 2017
+        // (astro-const), derived with their own stellar model. The fixed ROSSBY_SUN = 1.113
+        // disagrees with the implicit solar Rossby number of this code's own stellar-model
+        // choices, (2 pi / SOLAR_ANGULAR_VELOCITY) / convective_turnover_time_sun
+        // = 25.38 d / 24.61 d = 1.031, which is the value the unsaturated branch above
+        // carries through its (tau_cz / tau_cz_sun)^2 (spin / SOLAR_ANGULAR_VELOCITY)^3
+        // form. The disagreement is the +16.5% torque jump at Ro = ROSSBY_SATURATION that
+        // the tanh blend below smooths. First step of the solar-Rossby unification: record
+        // the provenance; the replacement of the fixed value follows in the next commit.
         let saturated = -gamma
             * (ROSSBY_SUN / ROSSBY_SATURATION).powi(2)
             * (self.spin / SOLAR_ANGULAR_VELOCITY);
