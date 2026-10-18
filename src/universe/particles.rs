@@ -43,9 +43,19 @@ impl Particle {
             ParticleType::Star(star) => {
                 // Missing inputs deserialise to 0 (serde default): refuse to run the wind with
                 // an unset prefactor instead of silently applying no braking.
-                if self.wind.wind_torque() && !(star.wind_torque_prefactor > 0.0) {
+                if self.wind == WindModel::Enabled && !(star.wind_torque_prefactor > 0.0) {
                     bail!(
-                        "wind is enabled but the star input `wind_torque_prefactor` (J) is missing or not positive"
+                        "the Matt et al. 2015 wind is enabled but the star input `wind_torque_prefactor` (J) is missing or not positive"
+                    );
+                }
+                if let WindModel::Bouvier1997 {
+                    k_wind,
+                    spin_saturation,
+                } = self.wind
+                    && !(k_wind > 0.0 && spin_saturation > 0.0)
+                {
+                    bail!(
+                        "the Bouvier1997 wind needs positive `k_wind` (kg.m2.s) and `spin_saturation` (rad.s-1)"
                     );
                 }
                 star.initialise(time)?;

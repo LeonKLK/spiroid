@@ -65,7 +65,7 @@ pub fn test_star() -> Star {
     )
     .unwrap();
 
-    star.update_wind_torque(true);
+    star.update_wind_torque(&WindModel::Enabled);
 
     star
 }
@@ -86,6 +86,31 @@ fn _wind_torque() {
     let star = test_star();
     let result = star.wind_torque();
     assert_eq!(expected, result);
+}
+
+#[test]
+fn _wind_torque_bouvier_1997() {
+    // Posidonius check case: 1 Msun (1.9818e30 kg), R = 1.4917 R_sun, P = 1.91 d,
+    // K_wind = 5.15e-18 Msun.AU2.day, spin_saturation = 9 x 2 pi / 25 d.
+    let k_wind = 1.9734778e40;
+    let spin_saturation = TWO_PI * 9. / (25. * 86400.);
+    let mut star = Star::default();
+    star.mass = SOLAR_MASS;
+    star.radius = 1.4917 * SOLAR_RADIUS;
+    // Saturated: linear in spin, -6.29e26 J (6.3e26 in POSIDONIUS_SETUP_AND_WIND.md, section 3).
+    star.spin = TWO_PI / (1.91 * 86400.);
+    let saturated = star.wind_torque_bouvier_1997(k_wind, spin_saturation);
+    assert!((saturated / -6.29e26 - 1.).abs() < 1e-3, "{saturated}");
+    // The two branches meet at the switch.
+    star.spin = spin_saturation;
+    let at_switch = star.wind_torque_bouvier_1997(k_wind, spin_saturation);
+    star.spin = spin_saturation * (1. - 1e-12);
+    let below_switch = star.wind_torque_bouvier_1997(k_wind, spin_saturation);
+    assert!((at_switch / below_switch - 1.).abs() < 1e-10);
+    // Unsaturated: cubic in spin.
+    star.spin = spin_saturation / 2.;
+    let unsaturated = star.wind_torque_bouvier_1997(k_wind, spin_saturation);
+    assert!((unsaturated / at_switch - 0.125).abs() < 1e-12);
 }
 
 #[test]

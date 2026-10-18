@@ -331,7 +331,7 @@ impl Universe {
         }
 
         // Compute the stellar wind torque (if enabled).
-        star.update_wind_torque(self.central_body.wind.wind_torque());
+        star.update_wind_torque(&self.central_body.wind);
 
         // No planetary torques after the planet is destroyed.
         if planet.is_destroyed() {

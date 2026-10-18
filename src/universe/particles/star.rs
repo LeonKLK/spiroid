@@ -4,6 +4,7 @@ use crate::constants::{
     GRAVITATIONAL, PI, ROSSBY_SATURATION_ARDESTANI, SECONDS_IN_YEAR, SOLAR_ANGULAR_VELOCITY,
     SOLAR_MASS, SOLAR_MASS_LOSS_RATE, SOLAR_RADIUS, TWO_PI,
 };
+use crate::universe::effects::WindModel;
 use crate::universe::particles::{ParticleT, Planet};
 use serde::{Deserialize, Serialize};
 pub use star_csv::StarCsv;
@@ -408,9 +409,15 @@ impl Star {
     }
 
     // Update the wind torque.
-    pub(crate) fn update_wind_torque(&mut self, enabled: bool) {
-        if enabled {
-            self.wind_torque = self.wind_torque(); // requires mass, radius
+    pub(crate) fn update_wind_torque(&mut self, wind: &WindModel) {
+        if wind.wind_torque() {
+            self.wind_torque = match *wind {
+                WindModel::Bouvier1997 {
+                    k_wind,
+                    spin_saturation,
+                } => self.wind_torque_bouvier_1997(k_wind, spin_saturation), // requires mass, radius, spin
+                _ => self.wind_torque(), // requires mass, radius
+            };
             // alfven_radius is recalculated with the updated wind_torque
             self.alfven_radius = self.alfven_radius_estimate(); // requires mass_loss_rate, wind_torque
             self.evolved_wind_torque = self.evolved_wind_torque(); // requires spin, evolved_mass_loss_rate, radius
@@ -637,6 +644,17 @@ impl Star {
         }
     }
 
+    // Stellar wind torque, Bouvier et al. 1997 form as written in Bolmont & Mathis 2016, Eq. 14
+    // (the Posidonius wind). Saturated (linear in spin) above `spin_saturation`, cubic below,
+    // with a hard switch; continuous at the switch.
+    fn wind_torque_bouvier_1997(&self, k_wind: f64, spin_saturation: f64) -> f64 {
+        -k_wind
+            * self.spin
+            * min!(abs!(self.spin), spin_saturation).powi(2)
+            * sqrt!(self.radius / SOLAR_RADIUS)
+            * sqrt!(SOLAR_MASS / self.mass)
+    }
+
     // Stellar wind torque during the evolved phases of the star.
     // Dust wind torque
     // Madappatt et al 2016, Eq. 2
@@ -684,6 +702,8 @@ pub mod tests_mode_fromfile;
 // References:
 // Ardestani et al. 2017, https://doi.org/10.1093/mnras/stx2039
 // Benbakoura et al. 2019, https://doi.org/10.1051/0004-6361/201833314
+// Bolmont & Mathis 2016, https://doi.org/10.1007/s10569-016-9690-3
+// Bouvier et al. 1997, https://ui.adsabs.harvard.edu/abs/1997A%26A...326.1023B
 // Christensen-Dalsgaard et al. 1991 https://doi.org/10.1086/170441
 // Edgar 2004, https://doi.org/10.1016/j.newar.2004.06.001
 // Efroimsky 2012, https://doi.org/10.1007/s10569-011-9397-4
