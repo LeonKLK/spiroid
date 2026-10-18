@@ -271,9 +271,8 @@ fn _planet_semi_major_axis_13_div_2_derivative() {
     let mut magnetism = MagneticModel::Wind(wind);
     let tidal_torque_convective = tides.stellar_tidal_torque(&star, &planet);
     let magnetic_torque = magnetism.magnetic_torque(&planet, &star);
-    let wind_torque = WindModel::Enabled.wind_torque();
 
-    star.update_wind_torque(wind_torque);
+    star.update_wind_torque(&WindModel::Enabled);
     star.update_tidal_torque(tidal_torque_convective);
     star.update_magnetic_torque(magnetic_torque);
 
@@ -295,9 +294,8 @@ fn _kaula_planet_semi_major_axis_13_div_2_derivative() {
     let mut magnetism = MagneticModel::Wind(IsothermalWind::default());
     let tidal_torque_convective = tides.stellar_tidal_torque(&star, &planet);
     let magnetic_torque = magnetism.magnetic_torque(&planet, &star);
-    let wind_torque = WindModel::Enabled.wind_torque();
 
-    star.update_wind_torque(wind_torque);
+    star.update_wind_torque(&WindModel::Enabled);
     star.update_tidal_torque(tidal_torque_convective);
     star.update_magnetic_torque(magnetic_torque);
 
