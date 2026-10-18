@@ -19,6 +19,6 @@ fn _tidal_torque() {
     let planet = test_planet();
     let tidal_model = test_constant_time_lag();
     star.refresh_tidal_frequency(&planet);
-    let result = tidal_model.tidal_torque(&star, &planet);
+    let result = tidal_model.stellar_tidal_torque(&star, &planet);
     assert_eq!(expected, result);
 }

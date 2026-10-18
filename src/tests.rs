@@ -53,12 +53,40 @@ fn test_simulation(simulation: impl AsRef<Path>) -> Universe {
                 }
                 liquid_k2.dimension_check().unwrap();
             }
+            // Stellar convective envelope (dynamical tide of the star)
+            if let Some((spectrum_file, spin_spec, spectrum_k2)) = kaula.spectrum_file() {
+                let file: SpectrumFile = read_json_from_file(spectrum_file).unwrap();
+                *spin_spec = file.spin_spec;
+                *spectrum_k2 = file.spectrum;
+                if let DataStore::Interpolate1D(interpolator) = spectrum_k2 {
+                    // The file stores dimensionless tidal frequencies (omega / spin_spec);
+                    // convert to rad.s-1 at the reference spin, as expected by `compute_k2`.
+                    interpolator
+                        .x_vals_mut()
+                        .iter_mut()
+                        .for_each(|x| *x *= file.spin_spec);
+                }
+                spectrum_k2.dimension_check().unwrap();
+            }
         }
         if let ParticleType::Star(star) = &simulation.system.central_body.kind
             && let ParticleType::Planet(planet) = &simulation.system.orbiting_body.kind
         {
             kaula
-                .initialise_cache(simulation.initial_time, star, planet)
+                .initialise_cache(simulation.initial_time, star, planet, planet)
+                .unwrap();
+        }
+    }
+
+    // Load the love number spectrum if kaula tides are enabled on the star (stellar tide).
+    if let Some(kaula) = simulation.system.central_body.tides.kaula_get_mut() {
+        kaula.load_spectrum_file().unwrap();
+        if let ParticleType::Star(star) = &simulation.system.central_body.kind
+            && let ParticleType::Planet(planet) = &simulation.system.orbiting_body.kind
+        {
+            // Star is the tidally deformed body, planet the perturber and the orbit.
+            kaula
+                .initialise_cache(simulation.initial_time, planet, star, planet)
                 .unwrap();
         }
     }
@@ -199,6 +227,15 @@ fn example_planet_kaula_solid_tides_1d_interpolation() {
 #[test]
 fn example_planet_kaula_solid_tides_2d_interpolation() {
     let (config, expected) = make_testcase_paths("planet_kaula_solid_tides_2d_interpolation");
+    let result = test_simulation(&config);
+    compare_or_create(&expected, &result);
+}
+
+// Stellar dynamical tide with the kaula model (star = deformed body), coplanar.
+// 1 Msun star, P_rot = 1.2 d at 5 Myr (the spin of the spectrum), 5 Mearth planet at 0.03 AU.
+#[test]
+fn example_star_kaula_tides() {
+    let (config, expected) = make_testcase_paths("star_kaula_tides");
     let result = test_simulation(&config);
     compare_or_create(&expected, &result);
 }

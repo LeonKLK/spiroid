@@ -4,5 +4,5 @@ pub(crate) mod tides;
 pub(crate) mod wind;
 pub use general_relativity::GeneralRelativityModel;
 pub use magnetism::MagneticModel;
-pub use tides::Kaula;
+pub use tides::{Kaula, SpectrumFile};
 pub use wind::WindModel;

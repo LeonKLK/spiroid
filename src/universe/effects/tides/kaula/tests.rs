@@ -44,7 +44,8 @@ pub fn test_kaula() -> Kaula {
     kaula.summation.imaginary_pfactor = kaula.sum_over_m_imaginary_pfactor(mpq);
     kaula.summation.imaginary_qfactor = kaula.sum_over_m_imaginary_qfactor(mpq);
 
-    kaula.summation.imaginary_inclination = kaula.sum_over_m_imaginary_inclination(&planet, mpq);
+    kaula.summation.imaginary_inclination =
+        kaula.sum_over_m_imaginary_inclination(&planet, &planet, mpq);
     kaula.summation.imaginary_eccentricity = kaula.sum_over_m_imaginary_eccentricity(&planet, mpq);
 
     kaula
@@ -68,7 +69,7 @@ fn _refresh_high_ecc() {
     let mut planet = test_planet_kaula();
     planet.eccentricity = 0.3;
 
-    kaula.refresh(TEST_TIME, &planet, &star).unwrap();
+    kaula.refresh(TEST_TIME, &planet, &star, &planet).unwrap();
     let expected = Summation {
         real_2pq_2mp_dt: -2.4457628278616497e-6,
         real_2pq_dt_2mp: -0.00910296147744826,
@@ -89,7 +90,7 @@ fn _refresh_low_ecc() {
     let mut planet = test_planet_kaula();
     planet.inclination = 0.0;
     planet.refresh(planet.semi_major_axis, &star);
-    kaula.refresh(TEST_TIME, &planet, &star).unwrap();
+    kaula.refresh(TEST_TIME, &planet, &star, &planet).unwrap();
     let expected = Summation {
         real_2pq_2mp_dt: 0.017022814801684244,
         real_2pq_dt_2mp: -5.2982137061585994e-5,

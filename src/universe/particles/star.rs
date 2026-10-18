@@ -144,7 +144,8 @@ impl ParticleT for Star {
         self.spin
     }
     fn spin_inclination(&self) -> f64 {
-        todo!()
+        // The stellar spin axis defines the reference frame of the orbital elements.
+        0.0
     }
     fn eccentricity(&self) -> f64 {
         todo!()
@@ -156,7 +157,9 @@ impl ParticleT for Star {
         self.luminosity
     }
     fn moment_of_inertia(&self) -> f64 {
-        todo!()
+        // Moment of inertia of the tidally deformed region: the convective envelope,
+        // whose spin is `Star::spin` (see `ParticleT::spin`).
+        self.convective_moment_of_inertia
     }
     fn reduced_mass(&self) -> f64 {
         todo!()
@@ -394,7 +397,7 @@ impl Star {
         self.tidal_frequency = self.tidal_frequency(planet);
     }
 
-    // Update the tidal torque.
+    // Update the tidal torque (constant time lag or kaula stellar tide).
     pub(crate) fn update_tidal_torque(&mut self, tidal_torque_convective: f64) {
         self.tidal_torque_convective = tidal_torque_convective;
     }
