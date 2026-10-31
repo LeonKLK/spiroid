@@ -67,12 +67,16 @@ def effect_setup():
     effects = {
         "MAGNETIC_EFFECT_ENABLED": [True, False],
         "STAR_EVOLUTION_ENABLED": [True, False],
-        # Constant Time Lag stellar tide
-        "STAR_TIDES_ENABLED": [True, False],
-        # Kaula planetary tides
-        "PLANET_TIDES_ENABLED": [False],
-        # Constant time lag planetary tide (Hut 1981, Leconte et al. 2010); not with PLANET_TIDES_ENABLED
-        "PLANET_CTL_TIDES_ENABLED": [False],
+        # Stellar tides, one model at most (the two cannot both be True in a config):
+        #   kaula: dynamical tide from a love number spectrum (star input `kaula_spectrum_file`)
+        #   ctl: constant time lag, Benbakoura et al. 2019 (star input `sigma_bar`)
+        "STAR_TIDES_KAULA_ENABLED": [False],
+        "STAR_TIDES_CTL_ENABLED": [True, False],
+        # Planetary tides, one model at most:
+        #   kaula: solid planet with a love number file (`type_and_file`)
+        #   ctl: constant time lag, Hut 1981 / Leconte et al. 2010 (`ctl_*` inputs)
+        "PLANET_TIDES_KAULA_ENABLED": [False],
+        "PLANET_TIDES_CTL_ENABLED": [False],
         # Disable wind for testing conservation of angular momentum
         "WIND_ENABLED": [True],
         "GENERAL_RELATIVITY_ENABLED": [False],
@@ -100,7 +104,11 @@ def planet_setup(effects):
         planet_base["magnetic_field"] = [10.0]
 
     # Note that the order of Keplerian elements _must not_ be altered.
-    if effects["PLANET_TIDES_ENABLED"] or effects["GENERAL_RELATIVITY_ENABLED"] or effects["PLANET_CTL_TIDES_ENABLED"]:
+    if (
+        effects["PLANET_TIDES_KAULA_ENABLED"]
+        or effects["PLANET_TIDES_CTL_ENABLED"]
+        or effects["GENERAL_RELATIVITY_ENABLED"]
+    ):
         planet_base.update(
             {
                 # No units
@@ -110,7 +118,7 @@ def planet_setup(effects):
             }
         )
 
-    if effects["PLANET_TIDES_ENABLED"]:
+    if effects["PLANET_TIDES_KAULA_ENABLED"]:
         planet_base.update(
             {
                 # rad.s
@@ -126,13 +134,13 @@ def planet_setup(effects):
                 "type_and_file": [
                     (
                         "Solid",
-                        "examples/data/planet/tides/kaula/leconte2015_steinberger.csv",
+                        "examples/data/planet/tides/kaula/leconte2015_steinberger.json",
                     )
                 ],
             }
         )
 
-    if effects["PLANET_CTL_TIDES_ENABLED"]:
+    if effects["PLANET_TIDES_CTL_ENABLED"]:
         planet_base.update(
             {
                 # rad.s-1, initial planet spin (only integrated with the "Free" spin mode)
@@ -166,6 +174,7 @@ def star_setup(effects):
         # J: normalisation of the Matt et al. 2015 wind torque (gamma_sun, Eq. 8).
         # Keep this key after the seven above (they are unpacked by position in config.py).
         "wind_torque_prefactor": [8e23],
+        "kaula_spectrum_file": [None],  # Do not edit.
     }
 
     if effects["MAGNETIC_EFFECT_ENABLED"]:
@@ -206,7 +215,15 @@ def star_setup(effects):
         star_base["radiative_moment_of_inertia"] = [1.0]
         star_base["convective_moment_of_inertia"] = [1.0]
 
-    if effects["STAR_TIDES_ENABLED"]:
+    if effects["STAR_TIDES_KAULA_ENABLED"]:
+        # Love number spectrum of the stellar dynamical tide (examples/data/star/tides/kaula/,
+        # named by age, alpha, beta and rotation period). The file carries the stellar spin it
+        # was computed at; spiroid rescales it to the current spin during the run.
+        star_base["kaula_spectrum_file"] = [
+            "examples/data/star/tides/kaula/spectrum_age10Myr_alpha0.51600_beta0.55182_P1.2d.json"
+        ]
+
+    if effects["STAR_TIDES_CTL_ENABLED"]:
         star_base["sigma_bar"] = [1.0e-6]
 
     return star_base

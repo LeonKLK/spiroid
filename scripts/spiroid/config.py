@@ -41,16 +41,21 @@ def make_planets(planet_base, effects):
         # Remaining entries are looked up by name so that setup scripts written before a
         # key existed keep working.
         named = dict(zip(planet_base.keys(), planet_vals))
-        planet_ctl = effects.get("PLANET_CTL_TIDES_ENABLED", False)
-        if planet_ctl and effects["PLANET_TIDES_ENABLED"]:
-            raise ValueError("one tidal model per body: PLANET_TIDES_ENABLED (kaula) and PLANET_CTL_TIDES_ENABLED cannot both be enabled")
+        planet_kaula = effects["PLANET_TIDES_KAULA_ENABLED"]
+        planet_ctl = effects["PLANET_TIDES_CTL_ENABLED"]
+        if planet_kaula and planet_ctl:
+            raise ValueError(
+                "one tidal model per body: PLANET_TIDES_KAULA_ENABLED and PLANET_TIDES_CTL_ENABLED cannot both be enabled"
+            )
 
-        if effects["PLANET_TIDES_ENABLED"] or effects["GENERAL_RELATIVITY_ENABLED"] or planet_ctl:
+        if planet_kaula or planet_ctl or effects["GENERAL_RELATIVITY_ENABLED"]:
             eccentricity = planet_vals[4]
             pericentre_omega = planet_vals[5]
             planet.update({"eccentricity": eccentricity, "pericentre_omega": pericentre_omega})
 
-        if effects["PLANET_TIDES_ENABLED"]:
+        # Kaula planetary tide: the planet is the deformed body, its love number comes from
+        # the solid file.
+        if planet_kaula:
             (
                 spin,
                 inclination,
@@ -132,7 +137,32 @@ def make_stars(star_base, effects):
                 )
             star["wind_torque_prefactor"] = named["wind_torque_prefactor"]
 
-        if effects["STAR_TIDES_ENABLED"]:
+        star_kaula = effects["STAR_TIDES_KAULA_ENABLED"]
+        star_ctl = effects["STAR_TIDES_CTL_ENABLED"]
+        if star_kaula and star_ctl:
+            raise ValueError(
+                "one tidal model per body: STAR_TIDES_KAULA_ENABLED and STAR_TIDES_CTL_ENABLED cannot both be enabled"
+            )
+
+        # Kaula stellar tide: the star is the deformed body, its love number spectrum
+        # (examples/data/star/tides/kaula/, named by age, alpha, beta and rotation period)
+        # is the star input `kaula_spectrum_file`.
+        if star_kaula:
+            if named.get("kaula_spectrum_file") is None:
+                raise KeyError(
+                    "star_setup must provide 'kaula_spectrum_file' when STAR_TIDES_KAULA_ENABLED"
+                )
+            body["tides"] = {
+                "KaulaTides": {
+                    "particle_type": {
+                        "StarConvectiveEnvelope": {"spectrum_file": named["kaula_spectrum_file"]}
+                    }
+                }
+            }
+
+        # Constant time lag stellar tide (Benbakoura et al. 2019): equilibrium tide with
+        # sigma_bar_star plus the frequency-averaged dynamical tide.
+        if star_ctl:
             body["tides"] = {
                 "StellarConstantTimeLag": {
                     "equilibrium": {"SigmaBarStar": 1e-06},
@@ -184,9 +214,10 @@ def generate_all_effect_combinations(input_dict):
     tags = {
         "MAGNETIC_EFFECT_ENABLED": "magnetism",
         "STAR_EVOLUTION_ENABLED": "star_evolution",
-        "STAR_TIDES_ENABLED": "star_ctl_tides",
-        "PLANET_TIDES_ENABLED": "planet_kaula_tides",
-        "PLANET_CTL_TIDES_ENABLED": "planet_ctl_tides",
+        "STAR_TIDES_KAULA_ENABLED": "star_kaula_tides",
+        "STAR_TIDES_CTL_ENABLED": "star_ctl_tides",
+        "PLANET_TIDES_KAULA_ENABLED": "planet_kaula_tides",
+        "PLANET_TIDES_CTL_ENABLED": "planet_ctl_tides",
         "WIND_ENABLED": "wind",
         "GENERAL_RELATIVITY_ENABLED": "general_relativity",
     }

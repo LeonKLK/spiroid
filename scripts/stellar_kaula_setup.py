@@ -34,10 +34,7 @@ import sys
 
 sys.dont_write_bytecode = True
 
-import json
-from pathlib import Path
-
-from spiroid.config import generate_all_configs, generate_all_effect_combinations
+from spiroid.configmaker import make_configs
 from units import (
     AU,
     SECONDS_IN_YEAR,
@@ -111,11 +108,12 @@ def effect_setup():
     effects = {
         "MAGNETIC_EFFECT_ENABLED": [False],
         "STAR_EVOLUTION_ENABLED": [True],
-        # Constant Time Lag stellar tide: keep False, the kaula stellar tide is set by
-        # SPECTRUM_FILE above and added in make_configs below.
-        "STAR_TIDES_ENABLED": [False],
-        # Kaula planetary tides
-        "PLANET_TIDES_ENABLED": [False],
+        # Stellar tides, one model at most: the kaula stellar tide reads SPECTRUM_FILE above.
+        "STAR_TIDES_KAULA_ENABLED": [True],
+        "STAR_TIDES_CTL_ENABLED": [False],
+        # Planetary tides, one model at most.
+        "PLANET_TIDES_KAULA_ENABLED": [False],
+        "PLANET_TIDES_CTL_ENABLED": [False],
         # Disable wind for testing conservation of angular momentum
         "WIND_ENABLED": [True],
         "GENERAL_RELATIVITY_ENABLED": [False],
@@ -143,7 +141,11 @@ def planet_setup(effects):
         planet_base["magnetic_field"] = [10.0]
 
     # Note that the order of Keplerian elements _must not_ be altered.
-    if effects["PLANET_TIDES_ENABLED"] or effects["GENERAL_RELATIVITY_ENABLED"]:
+    if (
+        effects["PLANET_TIDES_KAULA_ENABLED"]
+        or effects["PLANET_TIDES_CTL_ENABLED"]
+        or effects["GENERAL_RELATIVITY_ENABLED"]
+    ):
         planet_base.update(
             {
                 # No units
@@ -153,7 +155,7 @@ def planet_setup(effects):
             }
         )
 
-    if effects["PLANET_TIDES_ENABLED"]:
+    if effects["PLANET_TIDES_KAULA_ENABLED"]:
         planet_base.update(
             {
                 # rad.s
@@ -169,9 +171,23 @@ def planet_setup(effects):
                 "type_and_file": [
                     (
                         "Solid",
-                        "examples/data/planet/tides/kaula/leconte2015_steinberger.csv",
+                        "examples/data/planet/tides/kaula/leconte2015_steinberger.json",
                     )
                 ],
+            }
+        )
+
+    if effects["PLANET_TIDES_CTL_ENABLED"]:
+        planet_base.update(
+            {
+                # rad.s-1, initial planet spin (only integrated with the "Free" spin mode)
+                "ctl_spin": [8.093879511357418e-07],
+                # No units (0.254 for Jupiter)
+                "ctl_radius_of_gyration_2": [0.254],
+                # s, k2 * delta_t of the planet (Leconte et al. 2010: 2 to 3e-2 s for Jupiter)
+                "ctl_k2_delta_t": [0.025],
+                # "PseudoSynchronous" (spin held at Leconte et al. 2010 Eq. 12) or "Free"
+                "ctl_spin_mode": ["PseudoSynchronous"],
             }
         )
 
@@ -195,6 +211,7 @@ def star_setup(effects):
         # J: normalisation of the Matt et al. 2015 wind torque (gamma_sun, Eq. 8).
         # Keep this key after the seven above (they are unpacked by position in config.py).
         "wind_torque_prefactor": [TRACK["prefactor"]],
+        "kaula_spectrum_file": [None],  # Do not edit.
     }
 
     if effects["MAGNETIC_EFFECT_ENABLED"]:
@@ -215,7 +232,10 @@ def star_setup(effects):
         star_base["radiative_moment_of_inertia"] = [1.0]
         star_base["convective_moment_of_inertia"] = [1.0]
 
-    if effects["STAR_TIDES_ENABLED"]:
+    if effects["STAR_TIDES_KAULA_ENABLED"]:
+        star_base["kaula_spectrum_file"] = [SPECTRUM_FILE]
+
+    if effects["STAR_TIDES_CTL_ENABLED"]:
         star_base["sigma_bar"] = [1.0e-6]
 
     return star_base
@@ -260,41 +280,6 @@ def integrator_setup():
     }
 
     return dopri853
-
-
-def make_configs(simulator_setup, effect_setup, planet_setup, star_setup, integrator_setup):
-    """Same as spiroid.configmaker.make_configs, with the kaula stellar tide added to each config."""
-    if len(sys.argv) != 2:
-        print("usage: python3 stellar_kaula_setup.py path/to/output/folder")
-        return
-
-    output_path = sys.argv[-1]
-    # Create the output directory path if it doesn't already exist.
-    Path(output_path).mkdir(parents=True, exist_ok=True)
-    (simulation, disk_lifetime) = simulator_setup()
-    integrator = integrator_setup()
-
-    star_tides = {
-        "KaulaTides": {"particle_type": {"StarConvectiveEnvelope": {"spectrum_file": SPECTRUM_FILE}}}
-    }
-
-    for effects, effect_label in generate_all_effect_combinations(effect_setup()):
-        simulation_name = f'{simulation["name"]}_{effect_label}-star_kaula_tides'
-        all_configs = generate_all_configs(
-            simulation["start_time"],
-            simulation["final_time"],
-            disk_lifetime,
-            planet_setup(effects),
-            star_setup(effects),
-            effects,
-            integrator,
-        )
-        for i, config in enumerate(all_configs):
-            config["universe"]["central_body"]["tides"] = star_tides
-            config_name = f"{output_path}/{simulation_name}_{i}.json.conf"
-            print(f"Making config: {config_name}")
-            with open(config_name, "x") as f:
-                f.write(json.dumps(config, indent=4))
 
 
 if __name__ == "__main__":
