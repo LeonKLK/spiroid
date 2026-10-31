@@ -204,7 +204,7 @@ Tides for each particle can be toggled independently into the following states:
 > Note: Currently CTL is not implemented for the Planet, and Kaula is not implemented for the Star.
 
 #### Constant Time Lag (star)
-Set the `tides` property of the `central_body` particle to `StellarConstantTimeLag` (formerly `ConstantTimeLag`, still accepted as an alias). The following header fields specify which tide is active:
+Set the `tides` property of the `central_body` particle to `StellarConstantTimeLag` (formerly `ConstantTimeLag`; the old key is no longer accepted). The following header fields specify which tide is active:
 
 - `Equilibrium`
     Activates the equilibrium tide.

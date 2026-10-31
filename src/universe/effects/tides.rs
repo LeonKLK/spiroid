@@ -16,8 +16,6 @@ pub enum TidalModel {
     Disabled,
     // Stellar tide of Benbakoura et al. (2019): equilibrium tide (sigma_bar_star, Bolmont & Mathis
     // 2016 Eq. 8, or Zahn) plus the frequency-averaged dynamical tide. Star only.
-    // "ConstantTimeLag" is the former name of this variant, kept as an alias for old configs.
-    #[serde(alias = "ConstantTimeLag")]
     StellarConstantTimeLag(StellarConstantTimeLag),
     KaulaTides(Kaula),
 }
