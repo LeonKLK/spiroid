@@ -2,7 +2,7 @@ pub(crate) mod kaula;
 pub use kaula::{Kaula, SpectrumFile};
 
 pub(crate) mod constant_time_lag;
-pub use constant_time_lag::ConstantTimeLag;
+pub use constant_time_lag::StellarConstantTimeLag;
 
 use crate::universe::particles::{Planet, Star};
 
@@ -14,8 +14,11 @@ use serde::{Deserialize, Serialize};
 pub enum TidalModel {
     #[default]
     Disabled,
-    // Equilibrium tide dissipation given as the dimensionless sigma_bar_star from Bolmont & Mathis (2016), Eq. 8
-    ConstantTimeLag(ConstantTimeLag),
+    // Stellar tide of Benbakoura et al. (2019): equilibrium tide (sigma_bar_star, Bolmont & Mathis
+    // 2016 Eq. 8, or Zahn) plus the frequency-averaged dynamical tide. Star only.
+    // "ConstantTimeLag" is the former name of this variant, kept as an alias for old configs.
+    #[serde(alias = "ConstantTimeLag")]
+    StellarConstantTimeLag(StellarConstantTimeLag),
     KaulaTides(Kaula),
 }
 
@@ -23,7 +26,7 @@ impl TidalModel {
     pub(crate) fn stellar_tidal_torque(&self, star: &Star, planet: &Planet) -> f64 {
         match self {
             TidalModel::Disabled => 0.0,
-            TidalModel::ConstantTimeLag(constant_time_lag) => {
+            TidalModel::StellarConstantTimeLag(constant_time_lag) => {
                 // requires tidal_frequency
                 constant_time_lag.stellar_tidal_torque(star, planet)
             }

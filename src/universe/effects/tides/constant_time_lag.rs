@@ -2,19 +2,19 @@ use crate::constants::GRAVITATIONAL;
 use crate::universe::particles::{Planet, Star};
 use serde::{Deserialize, Serialize};
 
-pub(crate) mod equilibrium;
-pub use equilibrium::Equilibrium;
+pub(crate) mod stellar_equilibrium;
+pub use stellar_equilibrium::Equilibrium;
 
-pub(crate) mod inertial;
-pub use inertial::Inertial;
+pub(crate) mod stellar_inertial;
+pub use stellar_inertial::Inertial;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
-pub struct ConstantTimeLag {
+pub struct StellarConstantTimeLag {
     pub equilibrium: Equilibrium,
     pub inertial: Inertial,
 }
 
-impl ConstantTimeLag {
+impl StellarConstantTimeLag {
     // This is a re-write of Eq. 3 and 19 from Benbakoura et al. 2019
     // without the factors that are in the function semi_major_axis_13_div_2_derivative in physics.rs
     // The a^-6 is here to compensate the a^6 in physics.rs

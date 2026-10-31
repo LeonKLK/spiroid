@@ -110,7 +110,7 @@ def make_stars(star_base, effects):
 
         if effects["STAR_TIDES_ENABLED"]:
             body["tides"] = {
-                "ConstantTimeLag": {
+                "StellarConstantTimeLag": {
                     "equilibrium": {"SigmaBarStar": 1e-06},
                     "inertial": "FrequencyAveraged",
                 }

@@ -2,7 +2,7 @@ use super::*;
 use crate::Universe;
 use crate::universe::effects::general_relativity::GeneralRelativityModel;
 use crate::universe::effects::magnetism::{IsothermalWind, MagneticModel};
-use crate::universe::effects::tides::ConstantTimeLag;
+use crate::universe::effects::tides::StellarConstantTimeLag;
 use crate::universe::effects::tides::TidalModel;
 use crate::universe::effects::tides::constant_time_lag::Equilibrium;
 use crate::universe::effects::tides::constant_time_lag::Inertial;
@@ -88,7 +88,7 @@ fn _derivatives_tides() {
         },
         central_body: Particle {
             kind: ParticleType::Star(star),
-            tides: TidalModel::ConstantTimeLag(ConstantTimeLag {
+            tides: TidalModel::StellarConstantTimeLag(StellarConstantTimeLag {
                 equilibrium: Equilibrium::SigmaBarStar(1e-6),
                 inertial: Inertial::FrequencyAveraged,
             }),
@@ -143,7 +143,7 @@ fn _derivatives_magnetic_tides() {
         },
         central_body: Particle {
             kind: ParticleType::Star(star),
-            tides: TidalModel::ConstantTimeLag(ConstantTimeLag {
+            tides: TidalModel::StellarConstantTimeLag(StellarConstantTimeLag {
                 equilibrium: Equilibrium::SigmaBarStar(1e-6),
                 inertial: Inertial::FrequencyAveraged,
             }),
@@ -259,7 +259,7 @@ fn _planet_semi_major_axis_13_div_2_derivative() {
     let mut star = test_star();
     let planet = test_planet_magnetic();
     star.refresh_tidal_frequency(&planet);
-    let tides = TidalModel::ConstantTimeLag(ConstantTimeLag {
+    let tides = TidalModel::StellarConstantTimeLag(StellarConstantTimeLag {
         equilibrium: Equilibrium::SigmaBarStar(1e-6),
         inertial: Inertial::FrequencyAveraged,
     });
@@ -285,7 +285,7 @@ fn _kaula_planet_semi_major_axis_13_div_2_derivative() {
     let planet = test_planet_kaula();
     star.refresh_tidal_frequency(&planet);
 
-    let tides = TidalModel::ConstantTimeLag(ConstantTimeLag {
+    let tides = TidalModel::StellarConstantTimeLag(StellarConstantTimeLag {
         equilibrium: Equilibrium::SigmaBarStar(1e-6),
         inertial: Inertial::FrequencyAveraged,
     });

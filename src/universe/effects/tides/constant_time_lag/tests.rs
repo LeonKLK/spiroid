@@ -4,8 +4,8 @@ use crate::universe::particles::star::tests_mode_ardestani::test_star;
 
 use pretty_assertions::assert_eq;
 
-pub fn test_constant_time_lag() -> ConstantTimeLag {
-    ConstantTimeLag {
+pub fn test_constant_time_lag() -> StellarConstantTimeLag {
+    StellarConstantTimeLag {
         equilibrium: Equilibrium::SigmaBarStar(1e-6),
         inertial: Inertial::FrequencyAveraged,
     }

@@ -1,6 +1,6 @@
 use super::*;
 use crate::universe::effects::magnetism::{IsothermalWind, MagneticModel};
-use crate::universe::effects::tides::ConstantTimeLag;
+use crate::universe::effects::tides::StellarConstantTimeLag;
 use crate::universe::effects::tides::constant_time_lag::Equilibrium;
 use crate::universe::effects::tides::constant_time_lag::Inertial;
 use crate::universe::particles::TidalModel;
@@ -217,7 +217,7 @@ fn _tidal_torque_enabled() {
     let mut star = test_star();
     let planet = test_planet();
     star.refresh_tidal_frequency(&planet);
-    let tides = TidalModel::ConstantTimeLag(ConstantTimeLag {
+    let tides = TidalModel::StellarConstantTimeLag(StellarConstantTimeLag {
         equilibrium: Equilibrium::SigmaBarStar(1e-6),
         inertial: Inertial::FrequencyAveraged,
     });
