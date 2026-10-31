@@ -73,6 +73,17 @@ pub(crate) fn force(
             planet_spin_axis_inclination_derivative(planet, star, kaula);
     }
 
+    // Constant time lag PLANETARY tide (`orbiting_body.tides`, Hut 1981, Leconte et al. 2010):
+    // the planet is the deformed body. Coplanar: evolves the semi-major axis, the
+    // eccentricity and the planet spin (held fixed when pseudo-synchronous). Angular momentum
+    // is exchanged between the planet spin and the orbit only, so nothing is added to the star.
+    // Alternative to the kaula planetary tide above (one `TidalModel` per body).
+    if let TidalModel::PlanetaryConstantTimeLag(ref ctl) = orbiting_body.tides {
+        dy.orbiting_body.semi_major_axis += ctl.semi_major_axis_13_div_2_derivative(planet, star);
+        dy.orbiting_body.eccentricity += ctl.eccentricity_squared_derivative(planet, star);
+        dy.orbiting_body.spin += ctl.spin_derivative(planet, star);
+    }
+
     // Kaula STELLAR tide (`central_body.tides`): the star is the deformed body.
     // Coplanar case only: contributes to the semi major axis, eccentricity and argument
     // of pericentre of the orbit; the star's spin is evolved through

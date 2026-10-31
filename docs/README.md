@@ -201,7 +201,7 @@ Tides for each particle can be toggled independently into the following states:
 - Constant Time Lag
 - Kaula Tides
 
-> Note: Currently CTL is not implemented for the Planet, and Kaula is not implemented for the Star.
+> Note: the two constant time lag models are different models: `StellarConstantTimeLag` (star) is the tidal quality factor model of Benbakoura et al. 2019 on a circular orbit, `PlanetaryConstantTimeLag` (planet) is the Hut 1981 weak-friction model at any eccentricity.
 
 #### Constant Time Lag (star)
 Set the `tides` property of the `central_body` particle to `StellarConstantTimeLag` (formerly `ConstantTimeLag`; the old key is no longer accepted). The following header fields specify which tide is active:
@@ -215,6 +215,16 @@ Set the `tides` property of the `central_body` particle to `StellarConstantTimeL
     Activates the dynamical tide for inertial waves/modes.
     * `Disabled` (default)
     * `FrequencyAveraged` Follows the frequency-averaged formalism described in [Mathis 2015](https://doi.org/10.1051/0004-6361/201526472)
+
+#### Constant Time Lag (planet)
+Set the `tides` property of the `orbiting_body` particle to `PlanetaryConstantTimeLag`. The planet is the tidally deformed body, with a constant time lag between the tidal forcing and its bulge ([Hut 1981](https://ui.adsabs.harvard.edu/abs/1981A%26A....99..126H/abstract), in the form of [Leconte et al. 2010](https://doi.org/10.1051/0004-6361/201014337) Eqs. 2 to 12, obliquity 0). It evolves the semi-major axis, the eccentricity (any value, closed-form eccentricity functions) and the planet spin; the star is not affected. Fields:
+
+- `k2_delta_t` the product of the planet love number and time lag $k_{2,p}\,\Delta t_p$ (s), e.g. 0.025 for Jupiter.
+- `spin`
+    * `PseudoSynchronous` (default) holds the planet spin at $\omega_{eq} = N(e)/\Omega(e)\,n$ (Leconte et al. 2010 Eq. 12).
+    * `Free` integrates the planet spin from its input `spin`; requires the planet `radius_of_gyration_2`.
+
+The planet inputs `eccentricity` and `spin` are read as for Kaula tides (e.g. `examples/planet_constant_time_lag_tides.conf`).
 
 #### Kaula tides (planet)
 Set the `tides` property of the `orbiting_body` particle to `KaulaTides`, specify the `particle_type` (e.g. `Solid`) and provide the appropriate love number data files.

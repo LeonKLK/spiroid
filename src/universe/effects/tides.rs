@@ -2,7 +2,7 @@ pub(crate) mod kaula;
 pub use kaula::{Kaula, SpectrumFile};
 
 pub(crate) mod constant_time_lag;
-pub use constant_time_lag::StellarConstantTimeLag;
+pub use constant_time_lag::{PlanetaryConstantTimeLag, PlanetarySpin, StellarConstantTimeLag};
 
 use crate::universe::particles::{Planet, Star};
 
@@ -17,13 +17,18 @@ pub enum TidalModel {
     // Stellar tide of Benbakoura et al. (2019): equilibrium tide (sigma_bar_star, Bolmont & Mathis
     // 2016 Eq. 8, or Zahn) plus the frequency-averaged dynamical tide. Star only.
     StellarConstantTimeLag(StellarConstantTimeLag),
+    // Planetary tide of Hut (1981) / Leconte et al. (2010): constant time lag k2 delta_t of
+    // the planet, any eccentricity, coplanar. Planet only.
+    PlanetaryConstantTimeLag(PlanetaryConstantTimeLag),
     KaulaTides(Kaula),
 }
 
 impl TidalModel {
     pub(crate) fn stellar_tidal_torque(&self, star: &Star, planet: &Planet) -> f64 {
         match self {
-            TidalModel::Disabled => 0.0,
+            // The planetary model is never set on the star (refused in `Particle::initialise`):
+            // its orbit and spin derivatives are computed in physics.rs.
+            TidalModel::Disabled | TidalModel::PlanetaryConstantTimeLag(_) => 0.0,
             TidalModel::StellarConstantTimeLag(constant_time_lag) => {
                 // requires tidal_frequency
                 constant_time_lag.stellar_tidal_torque(star, planet)
@@ -60,6 +65,19 @@ impl TidalModel {
         }
 
         Ok(())
+    }
+
+    /// Returns `true` if the `TidalModel` is `PlanetaryConstantTimeLag`.
+    pub(crate) fn planetary_constant_time_lag_enabled(&self) -> bool {
+        matches!(&self, TidalModel::PlanetaryConstantTimeLag(_))
+    }
+
+    /// Returns a reference to the `PlanetaryConstantTimeLag` struct if that is the `TidalModel`.
+    pub fn planetary_constant_time_lag_get(&self) -> Option<&PlanetaryConstantTimeLag> {
+        match self {
+            TidalModel::PlanetaryConstantTimeLag(ctl) => Some(ctl),
+            _ => None,
+        }
     }
 
     /// Returns `true` if the `TidalModel` is `KaulaTides`.

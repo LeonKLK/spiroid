@@ -1,5 +1,5 @@
 use crate::constants::MAGNETIC_PERMEABILITY_OF_VACUUM;
-use crate::universe::effects::tides::TidalModel;
+use crate::universe::effects::tides::{PlanetarySpin, TidalModel};
 use crate::universe::effects::{GeneralRelativityModel, MagneticModel, WindModel};
 pub(crate) mod planet;
 pub(crate) mod star;
@@ -9,6 +9,7 @@ pub use star::{Star, StarCsv};
 
 use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
 pub enum ParticleType {
@@ -48,9 +49,32 @@ impl Particle {
                         "wind is enabled but the star input `wind_torque_prefactor` (J) is missing or not positive"
                     );
                 }
+                if self.tides.planetary_constant_time_lag_enabled() {
+                    bail!(
+                        "`PlanetaryConstantTimeLag` is a planetary tide: set it on the orbiting body; the star takes `StellarConstantTimeLag` or `KaulaTides`"
+                    );
+                }
                 star.initialise(time)?;
             }
-            ParticleType::Planet(planet) => planet.initialise(),
+            ParticleType::Planet(planet) => {
+                if let Some(ctl) = self.tides.planetary_constant_time_lag_get() {
+                    // Missing inputs deserialise to 0 (serde default); NaN is refused too.
+                    if ctl.k2_delta_t.partial_cmp(&0.0) != Some(Ordering::Greater) {
+                        bail!(
+                            "the planetary constant time lag tide needs a positive `k2_delta_t` (s)"
+                        );
+                    }
+                    // A free spin is evolved with the planet's moment of inertia.
+                    if ctl.spin == PlanetarySpin::Free
+                        && planet.radius_of_gyration_2.partial_cmp(&0.0) != Some(Ordering::Greater)
+                    {
+                        bail!(
+                            "the planetary constant time lag tide with a `Free` spin needs the planet input `radius_of_gyration_2` (0.254 for Jupiter) to be positive"
+                        );
+                    }
+                }
+                planet.initialise();
+            }
         }
 
         Ok(())

@@ -231,6 +231,15 @@ fn example_planet_kaula_solid_tides_2d_interpolation() {
     compare_or_create(&expected, &result);
 }
 
+// Planetary tide with the constant time lag model (planet = deformed body), coplanar.
+// Jupiter at 0.05 AU, e = 0.1, pseudo-synchronous spin, star without tides.
+#[test]
+fn example_planet_constant_time_lag_tides() {
+    let (config, expected) = make_testcase_paths("planet_constant_time_lag_tides");
+    let result = test_simulation(&config);
+    compare_or_create(&expected, &result);
+}
+
 // Stellar dynamical tide with the kaula model (star = deformed body), coplanar.
 // 1 Msun star, P_rot = 1.2 d at 5 Myr (the spin of the spectrum), 5 Mearth planet at 0.03 AU.
 #[test]

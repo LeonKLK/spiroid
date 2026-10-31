@@ -2,6 +2,7 @@ pub(crate) mod effects;
 pub(crate) mod particles;
 pub(crate) mod physics;
 
+use effects::tides::{PlanetaryConstantTimeLag, PlanetarySpin};
 pub use effects::{Kaula, SpectrumFile};
 pub use particles::{Particle, ParticleType, Planet, Star, StarCsv};
 
@@ -342,7 +343,7 @@ impl Universe {
         star.refresh_tidal_frequency(planet);
 
         // The planet orbital elements (spin, e, i, angles) are only evolved when kaula
-        // tides are enabled on either body.
+        // tides are enabled on either body, or the constant time lag tide on the planet.
         // TODO (check): enabling the kaula STELLAR tide alone (planet tides disabled) also
         // takes this branch. Compared to a CTL-only run (where the eccentricity stays
         // frozen at its input value and this branch is skipped) this means:
@@ -354,7 +355,12 @@ impl Universe {
         // Check that these snaps do not bias a CTL vs kaula stellar tide comparison.
         let planet_kaula = self.orbiting_body.tides.kaula_enabled();
         let star_kaula = self.central_body.tides.kaula_enabled();
-        if planet_kaula || star_kaula {
+        // The constant time lag planetary tide writes de^2/dt and the planet spin derivative.
+        let planet_ctl = self
+            .orbiting_body
+            .tides
+            .planetary_constant_time_lag_enabled();
+        if planet_kaula || star_kaula || planet_ctl {
             //(spin, eccentricity, inclination, longitude_ascending_node, pericentre_omega, spin_inclination)
             // Invert the exponent of e^2 to normalise the eccentricity.
             // The integrated e^2 can overshoot slightly below zero when the tide circularises
@@ -368,6 +374,14 @@ impl Universe {
                 new_state.orbiting_body.pericentre_omega,
                 new_state.orbiting_body.spin_inclination,
             );
+            // Constant time lag planetary tide with the spin held pseudo-synchronous
+            // (Leconte et al. 2010 Eq. 12): the integrated spin is ignored, the planet spin
+            // follows the orbit. Must follow `refresh_orbital_elements` (reads e and n).
+            if let Some(ctl) = self.orbiting_body.tides.planetary_constant_time_lag_get()
+                && ctl.spin == PlanetarySpin::PseudoSynchronous
+            {
+                planet.spin = PlanetaryConstantTimeLag::pseudo_synchronous_spin(planet);
+            }
         } else if self.central_body.general_relativity.is_enabled() {
             // General relativity only evolves pericentre_omega
             // If general relativity and kaula tides are both enabled,

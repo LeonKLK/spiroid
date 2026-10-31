@@ -71,6 +71,8 @@ def effect_setup():
         "STAR_TIDES_ENABLED": [True, False],
         # Kaula planetary tides
         "PLANET_TIDES_ENABLED": [False],
+        # Constant time lag planetary tide (Hut 1981, Leconte et al. 2010); not with PLANET_TIDES_ENABLED
+        "PLANET_CTL_TIDES_ENABLED": [False],
         # Disable wind for testing conservation of angular momentum
         "WIND_ENABLED": [True],
         "GENERAL_RELATIVITY_ENABLED": [False],
@@ -98,7 +100,7 @@ def planet_setup(effects):
         planet_base["magnetic_field"] = [10.0]
 
     # Note that the order of Keplerian elements _must not_ be altered.
-    if effects["PLANET_TIDES_ENABLED"] or effects["GENERAL_RELATIVITY_ENABLED"]:
+    if effects["PLANET_TIDES_ENABLED"] or effects["GENERAL_RELATIVITY_ENABLED"] or effects["PLANET_CTL_TIDES_ENABLED"]:
         planet_base.update(
             {
                 # No units
@@ -127,6 +129,20 @@ def planet_setup(effects):
                         "examples/data/planet/tides/kaula/leconte2015_steinberger.csv",
                     )
                 ],
+            }
+        )
+
+    if effects["PLANET_CTL_TIDES_ENABLED"]:
+        planet_base.update(
+            {
+                # rad.s-1, initial planet spin (only integrated with the "Free" spin mode)
+                "ctl_spin": [8.093879511357418e-07],
+                # No units (0.254 for Jupiter)
+                "ctl_radius_of_gyration_2": [0.254],
+                # s, k2 * delta_t of the planet (Leconte et al. 2010: 2 to 3e-2 s for Jupiter)
+                "ctl_k2_delta_t": [0.025],
+                # "PseudoSynchronous" (spin held at Leconte et al. 2010 Eq. 12) or "Free"
+                "ctl_spin_mode": ["PseudoSynchronous"],
             }
         )
 

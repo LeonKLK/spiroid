@@ -38,7 +38,14 @@ def make_planets(planet_base, effects):
         if effects["MAGNETIC_EFFECT_ENABLED"]:
             planet["magnetic_field"] = magnetic_field
 
-        if effects["PLANET_TIDES_ENABLED"] or effects["GENERAL_RELATIVITY_ENABLED"]:
+        # Remaining entries are looked up by name so that setup scripts written before a
+        # key existed keep working.
+        named = dict(zip(planet_base.keys(), planet_vals))
+        planet_ctl = effects.get("PLANET_CTL_TIDES_ENABLED", False)
+        if planet_ctl and effects["PLANET_TIDES_ENABLED"]:
+            raise ValueError("one tidal model per body: PLANET_TIDES_ENABLED (kaula) and PLANET_CTL_TIDES_ENABLED cannot both be enabled")
+
+        if effects["PLANET_TIDES_ENABLED"] or effects["GENERAL_RELATIVITY_ENABLED"] or planet_ctl:
             eccentricity = planet_vals[4]
             pericentre_omega = planet_vals[5]
             planet.update({"eccentricity": eccentricity, "pericentre_omega": pericentre_omega})
@@ -64,6 +71,23 @@ def make_planets(planet_base, effects):
 
             body["tides"] = {
                 "KaulaTides": {"particle_type": {particle_type: {"solid_file": kaula_solid_file}}}
+            }
+
+        # Constant time lag planetary tide (Hut 1981, Leconte et al. 2010): the planet spin
+        # (rad.s-1) and radius_of_gyration_2 are the planet inputs, k2_delta_t (s) and the spin
+        # mode ("PseudoSynchronous" or "Free") the model inputs.
+        if planet_ctl:
+            planet.update(
+                {
+                    "spin": named["ctl_spin"],
+                    "radius_of_gyration_2": named["ctl_radius_of_gyration_2"],
+                }
+            )
+            body["tides"] = {
+                "PlanetaryConstantTimeLag": {
+                    "k2_delta_t": named["ctl_k2_delta_t"],
+                    "spin": named["ctl_spin_mode"],
+                }
             }
 
         if not effects["WIND_ENABLED"]:
@@ -162,6 +186,7 @@ def generate_all_effect_combinations(input_dict):
         "STAR_EVOLUTION_ENABLED": "star_evolution",
         "STAR_TIDES_ENABLED": "star_ctl_tides",
         "PLANET_TIDES_ENABLED": "planet_kaula_tides",
+        "PLANET_CTL_TIDES_ENABLED": "planet_ctl_tides",
         "WIND_ENABLED": "wind",
         "GENERAL_RELATIVITY_ENABLED": "general_relativity",
     }

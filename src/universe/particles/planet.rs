@@ -20,7 +20,7 @@ pub struct Planet {
     pub(crate) semi_major_axis: f64, // m
     pub(crate) magnetic_field: f64,  // (T)
 
-    // Input parameters, only if kaula tides enabled.
+    // Input parameters, only if kaula tides or the planetary constant time lag tide are enabled.
     pub(crate) spin: f64,                     // rad.s
     pub(crate) eccentricity: f64,             // ()
     pub(crate) inclination: f64,              // rad
