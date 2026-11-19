@@ -398,8 +398,7 @@ impl Star {
     }
 
     // Record the total tidal torque exerted on the star (sum of the enabled stellar tides).
-    // Output only: the integration takes each stellar tide's torque directly in
-    // `physics::force`.
+    // Output only: the integration collects the same torques in `physics::force`.
     pub(crate) fn update_tidal_torque(&mut self, tidal_torque_convective: f64) {
         self.tidal_torque_convective = tidal_torque_convective;
     }

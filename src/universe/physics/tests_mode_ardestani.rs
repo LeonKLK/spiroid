@@ -380,6 +380,79 @@ fn _derivatives_constant_time_lag_pseudo_synchronous() {
 }
 
 #[test]
+// Two stellar tides together (constant time lag and frequency-averaged): their torques are
+// summed first and the total is added once to the convective zone, so the derivative is
+// exactly the non-tidal part plus the total tidal torque recorded in the output.
+fn _derivatives_stellar_tides_collected() {
+    let star = test_star_evolving();
+    let planet = test_planet();
+
+    let mut y = UniverseIntegral::default();
+    y.central_body.radiative_zone_angular_momentum = star.radiative_zone_angular_momentum;
+    y.central_body.convective_zone_angular_momentum = star.convective_zone_angular_momentum;
+    // The frequency-averaged tide only acts when n < 2 spin (inertial waves): place the
+    // planet far enough for that (0.3 AU; `test_planet` is inside this limit).
+    let semi_major_axis: f64 = 4.5e10;
+    y.orbiting_body.semi_major_axis = semi_major_axis.powf(6.5);
+
+    let mut universe = Universe {
+        orbiting_body: Particle {
+            kind: ParticleType::Planet(planet),
+            tides: Tides::default(),
+            magnetism: MagneticModel::Disabled,
+            wind: WindModel::Disabled,
+            general_relativity: GeneralRelativityModel::Disabled,
+        },
+        central_body: Particle {
+            kind: ParticleType::Star(star),
+            tides: test_stellar_tides(),
+            magnetism: MagneticModel::Disabled,
+            wind: WindModel::Enabled,
+            general_relativity: GeneralRelativityModel::Disabled,
+        },
+        time: TEST_TIME,
+        disk_lifetime: TEST_DISK_LIFETIME,
+        disk_is_dissipated: DISK_IS_DISSIPATED,
+        derivatives: UniverseIntegral::default(),
+    };
+    universe.update(TEST_TIME, &y).unwrap();
+    let mut result = UniverseIntegral::default();
+    force(
+        &universe.central_body,
+        &universe.orbiting_body,
+        universe.disk_is_dissipated,
+        &mut result,
+    )
+    .unwrap();
+
+    let ParticleType::Star(star) = &universe.central_body.kind else {
+        unreachable!()
+    };
+    let ParticleType::Planet(planet) = &universe.orbiting_body.kind else {
+        unreachable!()
+    };
+    let tides = &universe.central_body.tides;
+    let quality_factor_torque = tides.stellar_quality_factor_torque(star, planet);
+    let constant_time_lag_torque = tides
+        .constant_time_lag_get()
+        .unwrap()
+        .tidal_torque(star, planet, planet);
+    // Both tides are active in this configuration.
+    assert!(planet.mean_motion < 2. * star.spin);
+    assert!(quality_factor_torque != 0.0);
+    assert!(constant_time_lag_torque != 0.0);
+    assert_eq!(
+        quality_factor_torque + constant_time_lag_torque,
+        star.tidal_torque_convective
+    );
+    assert_eq!(
+        star_convective_zone_angular_momentum_derivative(star, DISK_IS_DISSIPATED)
+            + star.tidal_torque_convective,
+        result.central_body.convective_zone_angular_momentum
+    );
+}
+
+#[test]
 fn _star_radiative_zone_angular_momentum_derivative() {
     let mut star = test_star();
     let planet = test_planet();

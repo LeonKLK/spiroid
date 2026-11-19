@@ -135,8 +135,8 @@ impl Kaula {
     /// whose division by the moment of inertia gives the spin derivative of the deformed
     /// body (see `planet_spin_derivative` in physics.rs for the planet-role version).
     /// For the stellar tide, pass the star as `tidal_deformed_body` and the planet as
-    /// `tidal_perturber` and `orbit`; the result is added to the angular momentum derivative
-    /// of the star's convective zone in `physics::force`.
+    /// `tidal_perturber` and `orbit`; the result is collected with the other tidal torques
+    /// on the star in `physics::force`.
     pub(crate) fn tidal_torque_on_deformed_body(
         &self,
         tidal_deformed_body: &impl ParticleT,
