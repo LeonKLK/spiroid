@@ -2,9 +2,12 @@ use super::*;
 use crate::Universe;
 use crate::universe::effects::general_relativity::GeneralRelativityModel;
 use crate::universe::effects::magnetism::{IsothermalWind, MagneticModel};
+use crate::universe::effects::tides::constant_time_lag::tests::{
+    test_planetary_constant_time_lag, test_stellar_constant_time_lag,
+};
 use crate::universe::effects::tides::kaula::tests::test_kaula;
 use crate::universe::effects::tides::tests::test_stellar_tides;
-use crate::universe::effects::tides::{DynamicalTide, Tides};
+use crate::universe::effects::tides::{ConstantTimeLag, DynamicalTide, EquilibriumTide, Tides};
 use crate::universe::effects::wind::WindModel;
 use crate::universe::particles::planet::tests::{
     test_planet, test_planet_kaula, test_planet_magnetic, test_planet_mercury,
@@ -227,6 +230,153 @@ fn _derivatives_kaula() {
     expected.orbiting_body.spin_inclination = 0.00035271712433232114;
 
     assert_eq!(expected, result);
+}
+
+// Constant time lag tide on both bodies: the star and the planet go through the same
+// equations with the roles swapped, and each tide block of `force` writes its torque on
+// its own deformed body (angular momentum of the convective zone for the star, spin for
+// the planet).
+fn constant_time_lag_universe(planet_spin_mode: PlanetarySpin) -> (Universe, UniverseIntegral) {
+    let star = test_star_evolving();
+    let mut planet = test_planet();
+    planet.radius_of_gyration_2 = 0.254;
+    planet.initialise();
+    let spin = 3.0 * planet.mean_motion;
+    let eccentricity: f64 = 0.3;
+
+    let mut y = UniverseIntegral::default();
+    y.central_body.radiative_zone_angular_momentum = star.radiative_zone_angular_momentum;
+    y.central_body.convective_zone_angular_momentum = star.convective_zone_angular_momentum;
+    y.orbiting_body.semi_major_axis = planet.semi_major_axis.powf(6.5);
+    y.orbiting_body.spin = spin;
+    y.orbiting_body.eccentricity = eccentricity.powi(2);
+
+    let universe = Universe {
+        orbiting_body: Particle {
+            kind: ParticleType::Planet(planet),
+            tides: Tides {
+                equilibrium: EquilibriumTide::ConstantTimeLag(ConstantTimeLag {
+                    spin: planet_spin_mode,
+                    ..test_planetary_constant_time_lag()
+                }),
+                dynamical: DynamicalTide::Disabled,
+            },
+            magnetism: MagneticModel::Disabled,
+            wind: WindModel::Disabled,
+            general_relativity: GeneralRelativityModel::Disabled,
+        },
+        central_body: Particle {
+            kind: ParticleType::Star(star),
+            tides: Tides {
+                equilibrium: EquilibriumTide::ConstantTimeLag(test_stellar_constant_time_lag()),
+                dynamical: DynamicalTide::Disabled,
+            },
+            magnetism: MagneticModel::Disabled,
+            wind: WindModel::Disabled,
+            general_relativity: GeneralRelativityModel::Disabled,
+        },
+        time: TEST_TIME,
+        disk_lifetime: TEST_DISK_LIFETIME,
+        disk_is_dissipated: DISK_IS_DISSIPATED,
+        derivatives: UniverseIntegral::default(),
+    };
+    (universe, y)
+}
+
+#[test]
+fn _derivatives_constant_time_lag_star_and_planet() {
+    let (mut universe, y) = constant_time_lag_universe(PlanetarySpin::Free);
+    universe.update(TEST_TIME, &y).unwrap();
+    let mut result = UniverseIntegral::default();
+    force(
+        &universe.central_body,
+        &universe.orbiting_body,
+        universe.disk_is_dissipated,
+        &mut result,
+    )
+    .unwrap();
+
+    let ParticleType::Star(star) = &universe.central_body.kind else {
+        unreachable!()
+    };
+    let ParticleType::Planet(planet) = &universe.orbiting_body.kind else {
+        unreachable!()
+    };
+    let stellar_ctl = universe.central_body.tides.constant_time_lag_get().unwrap();
+    let planetary_ctl = universe
+        .orbiting_body
+        .tides
+        .constant_time_lag_get()
+        .unwrap();
+
+    // Star: the torque of the stellar tide is added to the convective zone.
+    let stellar_torque = stellar_ctl.tidal_torque(star, planet, planet);
+    assert!(stellar_torque != 0.0);
+    assert_eq!(
+        star_convective_zone_angular_momentum_derivative(star, DISK_IS_DISSIPATED) + stellar_torque,
+        result.central_body.convective_zone_angular_momentum
+    );
+    // The value recorded in the output is the same torque.
+    assert_eq!(stellar_torque, star.tidal_torque_convective);
+
+    // Planet: the torque of the planetary tide divided by the moment of inertia.
+    let planetary_torque = planetary_ctl.tidal_torque(planet, star, planet);
+    assert!(planetary_torque != 0.0);
+    assert_eq!(
+        planetary_torque / planet.moment_of_inertia,
+        result.orbiting_body.spin
+    );
+
+    // The two torques are balanced by the orbit: d(L_orb)/dt = -(torque on the star) -
+    // (torque on the planet), with L_orb = mu sqrt(G (M_star + M_p) a (1 - e^2)).
+    let e2 = planet.eccentricity.powi(2);
+    let orbital_angular_momentum = planet.reduced_mass
+        * sqrt!(GRAVITATIONAL * (star.mass + planet.mass) * planet.semi_major_axis * (1. - e2));
+    let semi_major_axis_rate =
+        result.orbiting_body.semi_major_axis / (6.5 * planet.semi_major_axis.powf(5.5));
+    let orbital_angular_momentum_rate = orbital_angular_momentum
+        * (semi_major_axis_rate / (2. * planet.semi_major_axis)
+            - result.orbiting_body.eccentricity / (2. * (1. - e2)));
+    assert_approx_eq!(
+        -(stellar_torque + planetary_torque) / orbital_angular_momentum_rate,
+        1.0,
+        1e-10
+    );
+}
+
+#[test]
+// With the planet spin held pseudo-synchronous the planetary torque is not integrated;
+// the stellar tide is unaffected.
+fn _derivatives_constant_time_lag_pseudo_synchronous() {
+    let (mut universe, y) = constant_time_lag_universe(PlanetarySpin::PseudoSynchronous);
+    universe.update(TEST_TIME, &y).unwrap();
+    let mut result = UniverseIntegral::default();
+    force(
+        &universe.central_body,
+        &universe.orbiting_body,
+        universe.disk_is_dissipated,
+        &mut result,
+    )
+    .unwrap();
+
+    let ParticleType::Star(star) = &universe.central_body.kind else {
+        unreachable!()
+    };
+    let ParticleType::Planet(planet) = &universe.orbiting_body.kind else {
+        unreachable!()
+    };
+    let stellar_ctl = universe.central_body.tides.constant_time_lag_get().unwrap();
+
+    assert_eq!(0.0, result.orbiting_body.spin);
+    assert_eq!(
+        ConstantTimeLag::pseudo_synchronous_spin(planet),
+        planet.spin
+    );
+    assert_eq!(
+        star_convective_zone_angular_momentum_derivative(star, DISK_IS_DISSIPATED)
+            + stellar_ctl.tidal_torque(star, planet, planet),
+        result.central_body.convective_zone_angular_momentum
+    );
 }
 
 #[test]

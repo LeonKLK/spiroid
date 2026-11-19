@@ -86,7 +86,9 @@ impl Tides {
     }
 
     /// Total tidal torque exerted on the star (kg.m2.s-2), applied to its convective zone:
-    /// the sum of the enabled stellar tides.
+    /// the sum of the enabled stellar tides. Recorded in the output as
+    /// `star.tidal_torque_convective`; the integration does not read it back, each stellar
+    /// tide adds its own torque in `physics::force`.
     pub(crate) fn stellar_tidal_torque(&self, star: &Star, planet: &Planet) -> f64 {
         let mut torque = self.stellar_quality_factor_torque(star, planet);
 

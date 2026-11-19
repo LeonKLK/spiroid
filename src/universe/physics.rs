@@ -1,5 +1,7 @@
 use crate::constants::{GRAVITATIONAL, SPEED_OF_LIGHT};
-use crate::universe::{Kaula, Particle, ParticleType, Planet, Star, UniverseIntegral};
+use crate::universe::{
+    Kaula, Particle, ParticleType, Planet, PlanetarySpin, Star, UniverseIntegral,
+};
 use anyhow::{Result, bail};
 
 pub(crate) fn force(
@@ -18,7 +20,9 @@ pub(crate) fn force(
         todo!();
     };
 
-    // Star derivatives
+    // Star derivatives. The stellar tides are not part of these two functions: each
+    // stellar tide below adds its own torque to the convective zone angular momentum, the
+    // same way each planetary tide adds its own term to the planet spin.
     dy.central_body.radiative_zone_angular_momentum =
         star_radiative_zone_angular_momentum_derivative(star);
     dy.central_body.convective_zone_angular_momentum =
@@ -30,29 +34,27 @@ pub(crate) fn force(
         return Ok(());
     }
 
-    // Semi major axis derivative from the torques applied on the star on a circular orbit
-    // (angular momentum conservation): magnetism and the stellar tides expressed as a tidal
-    // quality factor (0 if disabled).
-    // The constant time lag and kaula stellar tides also apply a torque on the star, but
-    // that torque only evolves the star's spin (see
-    // `star_convective_zone_angular_momentum_derivative`); their effect on the orbit is
-    // taken from their own equations below instead, which also carry the eccentricity
-    // terms, so their torque is excluded here to not count it twice.
+    // Quality factor STELLAR tides (`Zahn`, `FrequencyAveraged`; 0 if disabled): a torque on
+    // the convective zone of the star. On a circular orbit the angular momentum taken from
+    // the stellar spin goes to the orbit, so the semi major axis derivative is obtained from
+    // the same torque (angular momentum conservation), together with the magnetic torque.
+    // The constant time lag and kaula stellar tides are not in this torque: they write
+    // their own semi major axis and eccentricity terms below.
+    let stellar_quality_factor_torque = central_body
+        .tides
+        .stellar_quality_factor_torque(star, planet);
+    dy.central_body.convective_zone_angular_momentum += stellar_quality_factor_torque;
     dy.orbiting_body.semi_major_axis = planet_semi_major_axis_13_div_2_derivative_from_torque(
         planet,
         star,
-        star.magnetic_torque
-            + central_body
-                .tides
-                .stellar_quality_factor_torque(star, planet),
+        star.magnetic_torque + stellar_quality_factor_torque,
     );
 
     // Immutable borrow of kaula properties if kaula planet tides enabled.
     // This block is the PLANETARY tide only (`orbiting_body.tides`): the planet is the
     // deformed body and all `planet_*_derivative` functions below evolve the planet's
-    // spin and orbit. A Kaula STELLAR tide (`central_body.tides`) enters through
-    // `star.tidal_torque_convective` instead (see `Tides::stellar_tidal_torque`), and is
-    // independent of this block.
+    // spin and orbit. A Kaula STELLAR tide (`central_body.tides`) has its own block
+    // below and is independent of this one.
     // TODO (stellar tide, non-coplanar): the inclination / node / spin-axis derivatives
     // and the inclination part of the pericentre derivative here are planet-only; see the
     // TODO above `Kaula::summation_of_longitudinal_modes_triple_common`. Coplanar is fine
@@ -75,29 +77,37 @@ pub(crate) fn force(
 
     // Constant time lag PLANETARY tide (`orbiting_body.tides`, Hut 1981, Leconte et al. 2010):
     // the planet is the deformed body. Coplanar: evolves the semi-major axis, the
-    // eccentricity and the planet spin (held fixed when pseudo-synchronous). Angular momentum
-    // is exchanged between the planet spin and the orbit only, so nothing is added to the star.
+    // eccentricity and the planet spin. Angular momentum is exchanged between the planet spin
+    // and the orbit only, so nothing is added to the star.
+    // The planet integrates its spin, so the torque is divided by its (constant) moment of
+    // inertia. With the spin held pseudo-synchronous the torque is not applied: the spin is
+    // set from the orbit in `Universe::update_star_planet` instead.
     // Alternative to the kaula planetary tide above (refused together in `Particle::initialise`).
     if let Some(ctl) = orbiting_body.tides.constant_time_lag_get() {
         dy.orbiting_body.semi_major_axis +=
             ctl.semi_major_axis_13_div_2_derivative(planet, star, planet);
         dy.orbiting_body.eccentricity += ctl.eccentricity_squared_derivative(planet, star, planet);
-        dy.orbiting_body.spin += ctl.planet_spin_derivative(planet, star);
+        if ctl.spin == PlanetarySpin::Free {
+            dy.orbiting_body.spin +=
+                ctl.tidal_torque(planet, star, planet) / planet.moment_of_inertia;
+        }
     }
 
     // Constant time lag STELLAR tide (`central_body.tides`): the same equations with the
-    // star as the deformed body and the planet as the perturber. Evolves the semi-major axis
-    // and the eccentricity; the star's spin is evolved through `star.tidal_torque_convective`.
+    // star as the deformed body and the planet as the perturber. Evolves the semi-major axis,
+    // the eccentricity and the star spin. The star integrates the angular momentum of its
+    // convective zone (not its spin), so the torque is added as it is.
     if let Some(ctl) = central_body.tides.constant_time_lag_get() {
         dy.orbiting_body.semi_major_axis +=
             ctl.semi_major_axis_13_div_2_derivative(star, planet, planet);
         dy.orbiting_body.eccentricity += ctl.eccentricity_squared_derivative(star, planet, planet);
+        dy.central_body.convective_zone_angular_momentum += ctl.tidal_torque(star, planet, planet);
     }
 
     // Kaula STELLAR tide (`central_body.tides`): the star is the deformed body.
     // Coplanar case only: contributes to the semi major axis, eccentricity and argument
-    // of pericentre of the orbit; the star's spin is evolved through
-    // `star.tidal_torque_convective`.
+    // of pericentre of the orbit, and its torque to the angular momentum of the star's
+    // convective zone.
     // Summed with the planetary tide contributions above (if enabled).
     if let Some(kaula) = central_body.tides.kaula_get() {
         dy.orbiting_body.semi_major_axis +=
@@ -105,6 +115,8 @@ pub(crate) fn force(
         dy.orbiting_body.eccentricity += kaula_star_eccentricity_derivative(planet, star, kaula);
         dy.orbiting_body.pericentre_omega +=
             kaula_star_argument_pericentre_derivative(planet, star, kaula);
+        dy.central_body.convective_zone_angular_momentum +=
+            kaula.tidal_torque_on_deformed_body(star, planet, planet);
     }
 
     // General Relativity 1PN apsidal precession.
@@ -124,9 +136,10 @@ pub(crate) fn force(
     Ok(())
 }
 
-// Rate of change in the angular momentum in the convective zone.
+// Rate of change in the angular momentum in the convective zone, without the tides.
 // Includes additional wind torque which is applicable
 // during the post main sequence of the star's evolution.
+// The torque of each stellar tide is added in `force`, next to its orbital terms.
 
 // Ahuir et al. 2021, Eq. 2.
 fn star_convective_zone_angular_momentum_derivative(star: &Star, disk_is_dissipated: bool) -> f64 {
@@ -140,7 +153,6 @@ fn star_convective_zone_angular_momentum_derivative(star: &Star, disk_is_dissipa
         // evolved_wind_torque should be zero if not in the post main sequence.
         + star.evolved_wind_torque
         + star.magnetic_torque
-        + star.tidal_torque_convective
 }
 
 // Rate of change in the angular momentum in the radiative zone.

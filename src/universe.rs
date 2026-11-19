@@ -401,7 +401,8 @@ impl Universe {
                 .refresh_kaula_star(self.time, star, planet)?;
         }
 
-        // Compute the enabled effects dependent on a planet (magnetism, stellar tides)
+        // Compute the enabled effects dependent on a planet (magnetism, stellar tides).
+        // The tidal torque stored here is for the output only (see `physics::force`).
         star.update_tidal_torque(self.central_body.tides.stellar_tidal_torque(star, planet));
         star.update_magnetic_torque(self.central_body.magnetism.magnetic_torque(planet, star)); // Requires wind torque to be calculated first.
         star.update_evolved_change_semi_major_axis(self.central_body.wind.wind_torque(), planet);

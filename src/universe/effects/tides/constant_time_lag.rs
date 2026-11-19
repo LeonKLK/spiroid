@@ -198,18 +198,6 @@ impl ConstantTimeLag {
 
         2. * e * e * relative_rate
     }
-
-    /// Derivative of the PLANET spin (rad.s-2) from the tide raised on the planet: the torque
-    /// divided by the planet's moment of inertia (constant). Zero when the spin is held
-    /// pseudo-synchronous.
-    pub(crate) fn planet_spin_derivative(&self, planet: &Planet, star: &impl ParticleT) -> f64 {
-        match self.spin {
-            PlanetarySpin::PseudoSynchronous => 0.,
-            PlanetarySpin::Free => {
-                self.tidal_torque(planet, star, planet) / planet.moment_of_inertia
-            }
-        }
-    }
 }
 
 #[cfg(test)]

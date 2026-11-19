@@ -140,8 +140,7 @@ fn _planetary_angular_momentum_conservation() {
     let ctl = test_planetary_constant_time_lag();
     for eccentricity in [0.0, 0.3, 0.7] {
         let planet = test_planet_ctl(3.0 * test_planet().mean_motion, eccentricity);
-        let spin_angular_momentum_rate =
-            planet.moment_of_inertia * ctl.planet_spin_derivative(&planet, &star);
+        let spin_angular_momentum_rate = ctl.tidal_torque(&planet, &star, &planet);
         let orbital_angular_momentum_rate = orbital_angular_momentum_rate(
             &star,
             &planet,
@@ -167,7 +166,8 @@ fn _planetary_pseudo_synchronous_spin() {
     let scale = abs!(
         ctl.prefactor(&planet, &star, &planet) / planet.mean_motion / planet.moment_of_inertia
     );
-    assert!(abs!(ctl.planet_spin_derivative(&planet, &star)) < 1e-12 * scale);
+    let spin_derivative = ctl.tidal_torque(&planet, &star, &planet) / planet.moment_of_inertia;
+    assert!(abs!(spin_derivative) < 1e-12 * scale);
     // For e = 0 the pseudo-synchronous spin is the mean motion.
     let circular = test_planet_ctl(0.0, 0.0);
     assert_eq!(
@@ -188,8 +188,6 @@ fn _planetary_tide_circularises() {
     };
     assert!(ctl.eccentricity_squared_derivative(&planet, &star, &planet) < 0.0);
     assert!(ctl.semi_major_axis_13_div_2_derivative(&planet, &star, &planet) < 0.0);
-    // The spin is not integrated in this mode.
-    assert_eq!(0.0, ctl.planet_spin_derivative(&planet, &star));
     // No eccentricity change on a circular orbit.
     let circular = test_planet_ctl(0.0, 0.0);
     assert_eq!(
