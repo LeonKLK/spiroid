@@ -75,7 +75,11 @@ def make_planets(planet_base, effects):
             )
 
             body["tides"] = {
-                "KaulaTides": {"particle_type": {particle_type: {"solid_file": kaula_solid_file}}}
+                "dynamical": {
+                    "KaulaTides": {
+                        "particle_type": {particle_type: {"solid_file": kaula_solid_file}}
+                    }
+                }
             }
 
         # Constant time lag planetary tide (Hut 1981, Leconte et al. 2010): the planet spin
@@ -89,9 +93,11 @@ def make_planets(planet_base, effects):
                 }
             )
             body["tides"] = {
-                "PlanetaryConstantTimeLag": {
-                    "k2_delta_t": named["ctl_k2_delta_t"],
-                    "spin": named["ctl_spin_mode"],
+                "equilibrium": {
+                    "ConstantTimeLag": {
+                        "k2_delta_t": named["ctl_k2_delta_t"],
+                        "spin": named["ctl_spin_mode"],
+                    }
                 }
             }
 
@@ -153,21 +159,29 @@ def make_stars(star_base, effects):
                     "star_setup must provide 'kaula_spectrum_file' when STAR_TIDES_KAULA_ENABLED"
                 )
             body["tides"] = {
-                "KaulaTides": {
-                    "particle_type": {
-                        "StarConvectiveEnvelope": {"spectrum_file": named["kaula_spectrum_file"]}
+                "dynamical": {
+                    "KaulaTides": {
+                        "particle_type": {
+                            "StarConvectiveEnvelope": {
+                                "spectrum_file": named["kaula_spectrum_file"]
+                            }
+                        }
                     }
                 }
             }
 
-        # Constant time lag stellar tide (Benbakoura et al. 2019): equilibrium tide with
-        # sigma_bar_star plus the frequency-averaged dynamical tide.
+        # Constant time lag stellar equilibrium tide (Hut 1981, Leconte et al. 2010, the same
+        # model as the planetary one) with the normalised dissipation sigma_bar_star (star
+        # input `sigma_bar`), plus the frequency-averaged dynamical tide (Benbakoura et al.
+        # 2019).
         if star_ctl:
             body["tides"] = {
-                "StellarConstantTimeLag": {
-                    "equilibrium": {"SigmaBarStar": 1e-06},
-                    "inertial": "FrequencyAveraged",
-                }
+                "equilibrium": {
+                    "ConstantTimeLag": {
+                        "sigma_bar_star": sigma_bar if sigma_bar is not None else 1e-06
+                    }
+                },
+                "dynamical": "FrequencyAveraged",
             }
         if effects["MAGNETIC_EFFECT_ENABLED"]:
             body["magnetism"] = {"Wind": {"footpoint_conductance": footpoint_conductance}}

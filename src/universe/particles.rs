@@ -1,5 +1,5 @@
 use crate::constants::MAGNETIC_PERMEABILITY_OF_VACUUM;
-use crate::universe::effects::tides::{PlanetarySpin, TidalModel};
+use crate::universe::effects::tides::{DynamicalTide, EquilibriumTide, PlanetarySpin, Tides};
 use crate::universe::effects::{GeneralRelativityModel, MagneticModel, WindModel};
 pub(crate) mod planet;
 pub(crate) mod star;
@@ -21,7 +21,7 @@ pub enum ParticleType {
 pub struct Particle {
     pub kind: ParticleType,
     #[serde(default)]
-    pub tides: TidalModel,
+    pub tides: Tides,
     #[serde(default)]
     pub(crate) magnetism: MagneticModel,
     #[serde(default)]
@@ -49,15 +49,46 @@ impl Particle {
                         "wind is enabled but the star input `wind_torque_prefactor` (J) is missing or not positive"
                     );
                 }
-                if self.tides.planetary_constant_time_lag_enabled() {
-                    bail!(
-                        "`PlanetaryConstantTimeLag` is a planetary tide: set it on the orbiting body; the star takes `StellarConstantTimeLag` or `KaulaTides`"
-                    );
+                if let Some(ctl) = self.tides.constant_time_lag_get() {
+                    // Missing inputs deserialise to 0 (serde default); NaN is refused too.
+                    let k2_delta_t = ctl.k2_delta_t.partial_cmp(&0.0) == Some(Ordering::Greater);
+                    let sigma_bar_star =
+                        ctl.sigma_bar_star.partial_cmp(&0.0) == Some(Ordering::Greater);
+                    let valid = (k2_delta_t && ctl.sigma_bar_star == 0.0)
+                        || (sigma_bar_star && ctl.k2_delta_t == 0.0);
+                    if !valid {
+                        bail!(
+                            "the constant time lag tide of the star needs either a positive `sigma_bar_star` () or a positive `k2_delta_t` (s), not both"
+                        );
+                    }
                 }
                 star.initialise(time)?;
             }
             ParticleType::Planet(planet) => {
-                if let Some(ctl) = self.tides.planetary_constant_time_lag_get() {
+                if matches!(self.tides.equilibrium, EquilibriumTide::Zahn(_)) {
+                    bail!(
+                        "the `Zahn` equilibrium tide is a stellar tide: set it on the central body; the planet takes `ConstantTimeLag`"
+                    );
+                }
+                if matches!(self.tides.dynamical, DynamicalTide::FrequencyAveraged) {
+                    bail!(
+                        "the `FrequencyAveraged` dynamical tide is a stellar tide: set it on the central body; the planet takes `KaulaTides`"
+                    );
+                }
+                if let Some(ctl) = self.tides.constant_time_lag_get() {
+                    // The love number of the kaula planetary tide already holds the whole
+                    // response of the planet, and it integrates the planet spin.
+                    if self.tides.kaula_enabled() {
+                        bail!(
+                            "one tidal model on the planet: `ConstantTimeLag` and `KaulaTides` cannot both be enabled on the orbiting body"
+                        );
+                    }
+                    // `sigma_bar_star` is normalised with solar values (Hansen 2010 Eq. 7).
+                    if ctl.sigma_bar_star != 0.0 {
+                        bail!(
+                            "`sigma_bar_star` is the stellar dissipation: the constant time lag tide of the planet takes `k2_delta_t` (s)"
+                        );
+                    }
                     // Missing inputs deserialise to 0 (serde default); NaN is refused too.
                     if ctl.k2_delta_t.partial_cmp(&0.0) != Some(Ordering::Greater) {
                         bail!(

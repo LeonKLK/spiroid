@@ -2,11 +2,9 @@ use super::*;
 use crate::Universe;
 use crate::universe::effects::general_relativity::GeneralRelativityModel;
 use crate::universe::effects::magnetism::{IsothermalWind, MagneticModel};
-use crate::universe::effects::tides::StellarConstantTimeLag;
-use crate::universe::effects::tides::TidalModel;
-use crate::universe::effects::tides::constant_time_lag::Equilibrium;
-use crate::universe::effects::tides::constant_time_lag::Inertial;
 use crate::universe::effects::tides::kaula::tests::test_kaula;
+use crate::universe::effects::tides::tests::test_stellar_tides;
+use crate::universe::effects::tides::{DynamicalTide, Tides};
 use crate::universe::effects::wind::WindModel;
 use crate::universe::particles::planet::tests::{
     test_planet, test_planet_kaula, test_planet_magnetic, test_planet_mercury,
@@ -33,14 +31,14 @@ fn _derivatives_magnetic() {
     let mut universe = Universe {
         orbiting_body: Particle {
             kind: ParticleType::Planet(planet),
-            tides: TidalModel::Disabled,
+            tides: Tides::default(),
             magnetism: MagneticModel::Disabled,
             wind: WindModel::Disabled,
             general_relativity: GeneralRelativityModel::Disabled,
         },
         central_body: Particle {
             kind: ParticleType::Star(star),
-            tides: TidalModel::Disabled,
+            tides: Tides::default(),
             magnetism: MagneticModel::Wind(wind),
             wind: WindModel::Enabled,
             general_relativity: GeneralRelativityModel::Disabled,
@@ -81,17 +79,14 @@ fn _derivatives_tides() {
     let mut universe = Universe {
         orbiting_body: Particle {
             kind: ParticleType::Planet(planet),
-            tides: TidalModel::Disabled,
+            tides: Tides::default(),
             magnetism: MagneticModel::Disabled,
             wind: WindModel::Disabled,
             general_relativity: GeneralRelativityModel::Disabled,
         },
         central_body: Particle {
             kind: ParticleType::Star(star),
-            tides: TidalModel::StellarConstantTimeLag(StellarConstantTimeLag {
-                equilibrium: Equilibrium::SigmaBarStar(1e-6),
-                inertial: Inertial::FrequencyAveraged,
-            }),
+            tides: test_stellar_tides(),
             magnetism: MagneticModel::Disabled,
             wind: WindModel::Enabled,
             general_relativity: GeneralRelativityModel::Disabled,
@@ -114,8 +109,8 @@ fn _derivatives_tides() {
 
     let mut expected = UniverseIntegral::default();
     expected.central_body.radiative_zone_angular_momentum = -6.348994811695528e22;
-    expected.central_body.convective_zone_angular_momentum = 5.7202999319702066e23;
-    expected.orbiting_body.semi_major_axis = -1.9848639097150575e44;
+    expected.central_body.convective_zone_angular_momentum = 5.72030250188552e23;
+    expected.orbiting_body.semi_major_axis = -1.98486471648128e44;
 
     assert_eq!(expected, result);
 }
@@ -136,17 +131,14 @@ fn _derivatives_magnetic_tides() {
     let mut universe = Universe {
         orbiting_body: Particle {
             kind: ParticleType::Planet(planet),
-            tides: TidalModel::Disabled,
+            tides: Tides::default(),
             magnetism: MagneticModel::Disabled,
             wind: WindModel::Disabled,
             general_relativity: GeneralRelativityModel::Disabled,
         },
         central_body: Particle {
             kind: ParticleType::Star(star),
-            tides: TidalModel::StellarConstantTimeLag(StellarConstantTimeLag {
-                equilibrium: Equilibrium::SigmaBarStar(1e-6),
-                inertial: Inertial::FrequencyAveraged,
-            }),
+            tides: test_stellar_tides(),
             magnetism: MagneticModel::Wind(wind),
             wind: WindModel::Enabled,
             general_relativity: GeneralRelativityModel::Disabled,
@@ -169,8 +161,8 @@ fn _derivatives_magnetic_tides() {
 
     let mut expected = UniverseIntegral::default();
     expected.central_body.radiative_zone_angular_momentum = -6.348994811695528e22;
-    expected.central_body.convective_zone_angular_momentum = 6.228615306128701e23;
-    expected.orbiting_body.semi_major_axis = -2.1444379128099865e44;
+    expected.central_body.convective_zone_angular_momentum = 6.228617876044014e23;
+    expected.orbiting_body.semi_major_axis = -2.144438719576209e44;
 
     assert_eq!(expected, result);
 }
@@ -194,14 +186,17 @@ fn _derivatives_kaula() {
     let mut universe = Universe {
         orbiting_body: Particle {
             kind: ParticleType::Planet(planet),
-            tides: TidalModel::KaulaTides(test_kaula()),
+            tides: Tides {
+                dynamical: DynamicalTide::KaulaTides(test_kaula()),
+                ..Default::default()
+            },
             magnetism: MagneticModel::Disabled,
             wind: WindModel::Disabled,
             general_relativity: GeneralRelativityModel::Disabled,
         },
         central_body: Particle {
             kind: ParticleType::Star(star),
-            tides: TidalModel::Disabled,
+            tides: Tides::default(),
             magnetism: MagneticModel::Disabled,
             wind: WindModel::Enabled,
             general_relativity: GeneralRelativityModel::Disabled,
@@ -259,10 +254,7 @@ fn _planet_semi_major_axis_13_div_2_derivative() {
     let mut star = test_star();
     let planet = test_planet_magnetic();
     star.refresh_tidal_frequency(&planet);
-    let tides = TidalModel::StellarConstantTimeLag(StellarConstantTimeLag {
-        equilibrium: Equilibrium::SigmaBarStar(1e-6),
-        inertial: Inertial::FrequencyAveraged,
-    });
+    let tides = test_stellar_tides();
     let mut wind = IsothermalWind::default();
     wind.footpoint_conductance = 7e4;
     let mut magnetism = MagneticModel::Wind(wind);
@@ -274,8 +266,12 @@ fn _planet_semi_major_axis_13_div_2_derivative() {
     star.update_tidal_torque(tidal_torque_convective);
     star.update_magnetic_torque(magnetic_torque);
 
-    let result = planet_semi_major_axis_13_div_2_derivative(&planet, &star);
-    let expected = -2.143940262659268e44;
+    let result = planet_semi_major_axis_13_div_2_derivative_from_torque(
+        &planet,
+        &star,
+        star.magnetic_torque + star.tidal_torque_convective,
+    );
+    let expected = -2.143941069104275e44;
     assert_eq!(expected, result);
 }
 
@@ -285,10 +281,7 @@ fn _kaula_planet_semi_major_axis_13_div_2_derivative() {
     let planet = test_planet_kaula();
     star.refresh_tidal_frequency(&planet);
 
-    let tides = TidalModel::StellarConstantTimeLag(StellarConstantTimeLag {
-        equilibrium: Equilibrium::SigmaBarStar(1e-6),
-        inertial: Inertial::FrequencyAveraged,
-    });
+    let tides = test_stellar_tides();
     let mut magnetism = MagneticModel::Wind(IsothermalWind::default());
     let tidal_torque_convective = tides.stellar_tidal_torque(&star, &planet);
     let magnetic_torque = magnetism.magnetic_torque(&planet, &star);

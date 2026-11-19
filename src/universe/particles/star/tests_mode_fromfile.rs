@@ -1,9 +1,7 @@
 use super::*;
 use crate::universe::effects::magnetism::{IsothermalWind, MagneticModel};
-use crate::universe::effects::tides::StellarConstantTimeLag;
-use crate::universe::effects::tides::constant_time_lag::Equilibrium;
-use crate::universe::effects::tides::constant_time_lag::Inertial;
-use crate::universe::particles::TidalModel;
+use crate::universe::effects::tides::Tides;
+use crate::universe::effects::tides::tests::test_stellar_tides;
 use crate::universe::particles::planet::tests::{test_planet, test_planet_magnetic};
 use crate::universe::tests::{DISK_IS_DISSIPATED, TEST_TIME_MODE_FROMFILE};
 
@@ -206,21 +204,19 @@ fn _tidal_torque_disabled() {
     let mut star = test_star();
     let planet = test_planet_magnetic();
     star.refresh_tidal_frequency(&planet);
-    let tides = TidalModel::Disabled;
+    let tides = Tides::default();
     let result = tides.stellar_tidal_torque(&star, &planet);
     assert_eq!(expected, result);
 }
 
 #[test]
+// Constant time lag equilibrium tide (`sigma_bar_star`) and frequency-averaged dynamical tide.
 fn _tidal_torque_enabled() {
-    let expected = 9.330821869632422e24;
+    let expected = 9.330825710832457e24;
     let mut star = test_star();
     let planet = test_planet();
     star.refresh_tidal_frequency(&planet);
-    let tides = TidalModel::StellarConstantTimeLag(StellarConstantTimeLag {
-        equilibrium: Equilibrium::SigmaBarStar(1e-6),
-        inertial: Inertial::FrequencyAveraged,
-    });
+    let tides = test_stellar_tides();
     let result = tides.stellar_tidal_torque(&star, &planet);
     assert_eq!(expected, result);
 }

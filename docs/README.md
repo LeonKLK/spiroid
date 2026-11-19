@@ -195,39 +195,61 @@ When using a `MESA` stellar evolutionary model, the evolved wind is automaticall
 
 ### Tides
 
-Tides for each particle can be toggled independently into the following states:
+Each particle carries its own `tides` property: the tide raised on the star is set on the `central_body`, the tide raised on the planet on the `orbiting_body`. The two are independent and their effects add up. The tides of a body are split by mechanism into two entries, each of which is `Disabled` when missing:
 
-- Disabled
-- Constant Time Lag
-- Kaula Tides
+```json
+"tides": {
+    "equilibrium": {"ConstantTimeLag": {"sigma_bar_star": 1e-06}},
+    "dynamical": "FrequencyAveraged"
+}
+```
 
-> Note: the two constant time lag models are different models: `StellarConstantTimeLag` (star) is the tidal quality factor model of Benbakoura et al. 2019 on a circular orbit, `PlanetaryConstantTimeLag` (planet) is the Hut 1981 weak-friction model at any eccentricity.
+`"tides": "Disabled"` disables both.
 
-#### Constant Time Lag (star)
-Set the `tides` property of the `central_body` particle to `StellarConstantTimeLag` (formerly `ConstantTimeLag`; the old key is no longer accepted). The following header fields specify which tide is active:
+| entry | model | star | planet | orbit |
+|---|---|---|---|---|
+| `equilibrium` | `ConstantTimeLag` | yes | yes | any eccentricity, coplanar |
+| `equilibrium` | `Zahn` | yes | no | circular |
+| `dynamical` | `FrequencyAveraged` | yes | no | circular |
+| `dynamical` | `KaulaTides` | yes | yes | any eccentricity |
 
-- `Equilibrium`
-    Activates the equilibrium tide.
-    * `Disabled` (default)
-    * `SigmaBarStar` Follows the $\bar\sigma_\star$ formalism of [Hansen 2010](https://doi.org/10.1088/0004-637X/723/1/285). Requires a $\bar\sigma_\star$ factor.
-    * `Zahn` Follows the Zahn formalism as parameterised in [Mustill & Villaver 2012](http://doi.org/10.1088/0004-637X/761/2/121). Requires `f_prime` ($f^\prime$), `c_f` ($c_f$) and `gamma_f` ($\gamma_f$) of order unity.
-- `Inertial`
-    Activates the dynamical tide for inertial waves/modes.
-    * `Disabled` (default)
-    * `FrequencyAveraged` Follows the frequency-averaged formalism described in [Mathis 2015](https://doi.org/10.1051/0004-6361/201526472)
+On the planet, `ConstantTimeLag` and `KaulaTides` cannot both be enabled: the love number of the Kaula planetary tide already holds the whole response of the planet.
 
-#### Constant Time Lag (planet)
-Set the `tides` property of the `orbiting_body` particle to `PlanetaryConstantTimeLag`. The planet is the tidally deformed body, with a constant time lag between the tidal forcing and its bulge ([Hut 1981](https://ui.adsabs.harvard.edu/abs/1981A%26A....99..126H/abstract), in the form of [Leconte et al. 2010](https://doi.org/10.1051/0004-6361/201014337) Eqs. 2 to 12, obliquity 0). It evolves the semi-major axis, the eccentricity (any value, closed-form eccentricity functions) and the planet spin; the star is not affected. Fields:
+> Note: before the split, a body took one tidal model under the keys `StellarConstantTimeLag`, `PlanetaryConstantTimeLag` or `KaulaTides`. These keys are no longer accepted:
+> - `{"StellarConstantTimeLag": {"equilibrium": {"SigmaBarStar": x}, "inertial": "FrequencyAveraged"}}` is now `{"equilibrium": {"ConstantTimeLag": {"sigma_bar_star": x}}, "dynamical": "FrequencyAveraged"}`,
+> - `{"StellarConstantTimeLag": {"equilibrium": {"Zahn": {...}}, ...}}` is now `{"equilibrium": {"Zahn": {...}}, ...}`,
+> - `{"PlanetaryConstantTimeLag": {...}}` is now `{"equilibrium": {"ConstantTimeLag": {...}}}`,
+> - `{"KaulaTides": {...}}` is now `{"dynamical": {"KaulaTides": {...}}}`.
+>
+> `scripts/convert_tides_config.py` rewrites existing config files.
 
-- `k2_delta_t` the product of the planet love number and time lag $k_{2,p}\,\Delta t_p$ (s), e.g. 0.025 for Jupiter.
-- `spin`
+#### Equilibrium tide: `ConstantTimeLag` (star and planet)
+The tidal bulge of the deformed body lags the perturber by a constant time ([Hut 1981](https://ui.adsabs.harvard.edu/abs/1981A%26A....99..126H/abstract), in the form of [Leconte et al. 2010](https://doi.org/10.1051/0004-6361/201014337) Eqs. 2 to 12, obliquity 0). One set of equations serves both bodies: on the `central_body` the star is the deformed body and the planet the perturber, on the `orbiting_body` the roles are swapped. It evolves the semi-major axis, the eccentricity (any value, closed-form eccentricity functions) and the spin of the deformed body. Fields:
+
+- `k2_delta_t` the product of the love number and the time lag of the deformed body, $k_2\,\Delta t$ (s), constant in time, e.g. 0.025 for Jupiter.
+- `sigma_bar_star` (star only, instead of `k2_delta_t`) the normalised dissipation $\bar\sigma_\star$ of [Hansen 2010](https://doi.org/10.1088/0004-637X/723/1/285), constant in time. The time lag then follows the stellar radius ([Bolmont & Mathis 2016](https://doi.org/10.1007/s10569-016-9690-3) Eq. 8), about 2389 s $\times\,\bar\sigma_\star\,(R_\star/R_\odot)^5$:
+
+$$k_{2,\star}\,\Delta t_\star = \frac{3}{2}\,\bar\sigma_\star\,\sigma_0\,\frac{R_\star^5}{G}, \qquad \sigma_0 = \sqrt{\frac{G}{M_\odot R_\odot^7}}$$
+
+- `spin` (planet only; the stellar spin is always integrated)
     * `PseudoSynchronous` (default) holds the planet spin at $\omega_{eq} = N(e)/\Omega(e)\,n$ (Leconte et al. 2010 Eq. 12).
     * `Free` integrates the planet spin from its input `spin`; requires the planet `radius_of_gyration_2`.
 
-The planet inputs `eccentricity` and `spin` are read as for Kaula tides (e.g. `examples/planet_constant_time_lag_tides.conf`).
+On a circular orbit the stellar tide with `sigma_bar_star` is the equilibrium tide of the tidal quality factor framework of [Benbakoura et al. 2019](https://doi.org/10.1051/0004-6361/201833314) with $Q'_{\rm eq} = G / (\bar\sigma_\star \sigma_0 R_\star^5\,|2(\Omega_\star - n)|)$.
 
-#### Kaula tides (planet)
-Set the `tides` property of the `orbiting_body` particle to `KaulaTides`, specify the `particle_type` (e.g. `Solid`) and provide the appropriate love number data files.
+The planet inputs `eccentricity` and `spin` are read as for Kaula tides (e.g. `examples/planet_constant_time_lag_tides.conf`, `examples/star_equilibrium_tides.conf`).
+
+#### Equilibrium tide: `Zahn` (star)
+Follows the Zahn formalism as parameterised in [Mustill & Villaver 2012](http://doi.org/10.1088/0004-637X/761/2/121), expressed as a tidal quality factor. Requires `f_prime` ($f^\prime$), `c_f` ($c_f$) and `gamma_f` ($\gamma_f$) of order unity. Circular orbit: the torque on the star gives the stellar spin and the semi-major axis, the eccentricity is not evolved (e.g. `examples/star_zahn_tides_mesa.conf`).
+
+#### Dynamical tide: `FrequencyAveraged` (star)
+Frequency-averaged dissipation of inertial waves in the convective envelope ([Mathis 2015](https://doi.org/10.1051/0004-6361/201526472)), expressed as a tidal quality factor ([Bolmont & Mathis 2016](https://doi.org/10.1007/s10569-016-9690-3), Benbakoura et al. 2019). No input. Circular orbit, as for `Zahn`; the dissipations of the two add up ($1/Q' = 1/Q'_{\rm eq} + 1/Q'_{\rm dyn}$).
+
+#### Dynamical tide: `KaulaTides` (star)
+Set the `dynamical` entry of the `tides` property of the `central_body` particle to `KaulaTides` with the `particle_type` `StarConvectiveEnvelope` and the love number spectrum file of the star (e.g. `examples/star_kaula_tides.conf`).
+
+#### Dynamical tide: `KaulaTides` (planet)
+Set the `dynamical` entry of the `tides` property of the `orbiting_body` particle to `KaulaTides`, specify the `particle_type` (e.g. `Solid`) and provide the appropriate love number data files.
 Interpolation is supported in 1D by tidal frequency and 2D by time and tidal frequency.
 (e.g. `examples/data/planet/tides/kaula/leconte2015_steinberger.json`).
 The format of the file must be JSON with the following fields:
@@ -286,14 +308,15 @@ src
 │   │   ├── general_relativity.rs
 │   │   ├── magnetism.rs
 │   │   ├── tides
-│   │   │   ├── constant_time_lag
-│   │   │   │   ├── equilibrium.rs
-│   │   │   │   └── inertial.rs
 │   │   │   ├── constant_time_lag.rs
 │   │   │   ├── kaula
 │   │   │   │   ├── love_number.rs
 │   │   │   │   └── polynomials.rs
-│   │   │   └── kaula.rs
+│   │   │   ├── kaula.rs
+│   │   │   ├── quality_factor
+│   │   │   │   ├── frequency_averaged.rs
+│   │   │   │   └── zahn.rs
+│   │   │   └── quality_factor.rs
 │   │   └── tides.rs
 │   ├── effects.rs
 │   ├── particles

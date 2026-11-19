@@ -1,5 +1,4 @@
 use crate::constants::{GRAVITATIONAL, SPEED_OF_LIGHT};
-use crate::universe::effects::tides::TidalModel;
 use crate::universe::{Kaula, Particle, ParticleType, Planet, Star, UniverseIntegral};
 use anyhow::{Result, bail};
 
@@ -31,33 +30,34 @@ pub(crate) fn force(
         return Ok(());
     }
 
-    // Semi major axis derivative from the torques applied on the star (angular momentum
-    // conservation): magnetism and the constant time lag stellar tide (0 if disabled).
-    // For a kaula stellar tide the torque only evolves the star's spin (see
-    // `star_convective_zone_angular_momentum_derivative`); its effect on the orbit is
-    // taken from the kaula summations below instead, which also carry the eccentricity
-    // terms, so the tidal torque is excluded here to not count it twice.
-    let star_kaula = central_body.tides.kaula_get();
-    dy.orbiting_body.semi_major_axis = match star_kaula {
-        None => planet_semi_major_axis_13_div_2_derivative(planet, star),
-        Some(_) => planet_semi_major_axis_13_div_2_derivative_from_torque(
-            planet,
-            star,
-            star.magnetic_torque,
-        ),
-    };
+    // Semi major axis derivative from the torques applied on the star on a circular orbit
+    // (angular momentum conservation): magnetism and the stellar tides expressed as a tidal
+    // quality factor (0 if disabled).
+    // The constant time lag and kaula stellar tides also apply a torque on the star, but
+    // that torque only evolves the star's spin (see
+    // `star_convective_zone_angular_momentum_derivative`); their effect on the orbit is
+    // taken from their own equations below instead, which also carry the eccentricity
+    // terms, so their torque is excluded here to not count it twice.
+    dy.orbiting_body.semi_major_axis = planet_semi_major_axis_13_div_2_derivative_from_torque(
+        planet,
+        star,
+        star.magnetic_torque
+            + central_body
+                .tides
+                .stellar_quality_factor_torque(star, planet),
+    );
 
     // Immutable borrow of kaula properties if kaula planet tides enabled.
     // This block is the PLANETARY tide only (`orbiting_body.tides`): the planet is the
     // deformed body and all `planet_*_derivative` functions below evolve the planet's
     // spin and orbit. A Kaula STELLAR tide (`central_body.tides`) enters through
-    // `star.tidal_torque_convective` instead (see `TidalModel::tidal_torque`), and is
+    // `star.tidal_torque_convective` instead (see `Tides::stellar_tidal_torque`), and is
     // independent of this block.
     // TODO (stellar tide, non-coplanar): the inclination / node / spin-axis derivatives
     // and the inclination part of the pericentre derivative here are planet-only; see the
     // TODO above `Kaula::summation_of_longitudinal_modes_triple_common`. Coplanar is fine
     // for now.
-    if let TidalModel::KaulaTides(ref kaula) = orbiting_body.tides {
+    if let Some(kaula) = orbiting_body.tides.kaula_get() {
         // Sum the semi major axis derivative to account for both CTL star tide (if enabled) and Kaula planet tide.
         dy.orbiting_body.semi_major_axis +=
             kaula_planet_semi_major_axis_13_div_2_derivative(planet, star, kaula);
@@ -77,11 +77,21 @@ pub(crate) fn force(
     // the planet is the deformed body. Coplanar: evolves the semi-major axis, the
     // eccentricity and the planet spin (held fixed when pseudo-synchronous). Angular momentum
     // is exchanged between the planet spin and the orbit only, so nothing is added to the star.
-    // Alternative to the kaula planetary tide above (one `TidalModel` per body).
-    if let TidalModel::PlanetaryConstantTimeLag(ref ctl) = orbiting_body.tides {
-        dy.orbiting_body.semi_major_axis += ctl.semi_major_axis_13_div_2_derivative(planet, star);
-        dy.orbiting_body.eccentricity += ctl.eccentricity_squared_derivative(planet, star);
-        dy.orbiting_body.spin += ctl.spin_derivative(planet, star);
+    // Alternative to the kaula planetary tide above (refused together in `Particle::initialise`).
+    if let Some(ctl) = orbiting_body.tides.constant_time_lag_get() {
+        dy.orbiting_body.semi_major_axis +=
+            ctl.semi_major_axis_13_div_2_derivative(planet, star, planet);
+        dy.orbiting_body.eccentricity += ctl.eccentricity_squared_derivative(planet, star, planet);
+        dy.orbiting_body.spin += ctl.planet_spin_derivative(planet, star);
+    }
+
+    // Constant time lag STELLAR tide (`central_body.tides`): the same equations with the
+    // star as the deformed body and the planet as the perturber. Evolves the semi-major axis
+    // and the eccentricity; the star's spin is evolved through `star.tidal_torque_convective`.
+    if let Some(ctl) = central_body.tides.constant_time_lag_get() {
+        dy.orbiting_body.semi_major_axis +=
+            ctl.semi_major_axis_13_div_2_derivative(star, planet, planet);
+        dy.orbiting_body.eccentricity += ctl.eccentricity_squared_derivative(star, planet, planet);
     }
 
     // Kaula STELLAR tide (`central_body.tides`): the star is the deformed body.
@@ -89,7 +99,7 @@ pub(crate) fn force(
     // of pericentre of the orbit; the star's spin is evolved through
     // `star.tidal_torque_convective`.
     // Summed with the planetary tide contributions above (if enabled).
-    if let Some(kaula) = star_kaula {
+    if let Some(kaula) = central_body.tides.kaula_get() {
         dy.orbiting_body.semi_major_axis +=
             kaula_star_semi_major_axis_13_div_2_derivative(planet, star, kaula);
         dy.orbiting_body.eccentricity += kaula_star_eccentricity_derivative(planet, star, kaula);
@@ -148,16 +158,8 @@ fn star_radiative_zone_angular_momentum_derivative(star: &Star) -> f64 {
 // or tidal torque without the semi-major axis dependency
 // The last line corresponds to the change in semi-major axis from the mass lost in the evolved phases of evolution.
 // evolved_change_semi_major_axis is da/dt so is multiplied by 13/2 a^{11/2} to represent the derivative of a^{13/2}
-pub(crate) fn planet_semi_major_axis_13_div_2_derivative(planet: &Planet, star: &Star) -> f64 {
-    planet_semi_major_axis_13_div_2_derivative_from_torque(
-        planet,
-        star,
-        star.magnetic_torque + star.tidal_torque_convective,
-    )
-}
-
-// Same as `planet_semi_major_axis_13_div_2_derivative` with an explicit torque applied
-// on the star (kg.m2.s-2, including its a^-6 dependency).
+// `torque_on_star` is the torque applied on the star (kg.m2.s-2, including its a^-6
+// dependency) that is balanced by the orbit: magnetism and the quality factor stellar tides.
 pub(crate) fn planet_semi_major_axis_13_div_2_derivative_from_torque(
     planet: &Planet,
     star: &Star,

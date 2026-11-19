@@ -69,7 +69,8 @@ def effect_setup():
         "STAR_EVOLUTION_ENABLED": [True, False],
         # Stellar tides, one model at most (the two cannot both be True in a config):
         #   kaula: dynamical tide from a love number spectrum (star input `kaula_spectrum_file`)
-        #   ctl: constant time lag, Benbakoura et al. 2019 (star input `sigma_bar`)
+        #   ctl: constant time lag equilibrium tide (star input `sigma_bar`) plus the
+        #        frequency-averaged dynamical tide, Benbakoura et al. 2019
         "STAR_TIDES_KAULA_ENABLED": [False],
         "STAR_TIDES_CTL_ENABLED": [True, False],
         # Planetary tides, one model at most:

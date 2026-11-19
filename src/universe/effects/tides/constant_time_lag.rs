@@ -1,56 +1,26 @@
-use crate::constants::GRAVITATIONAL;
-use crate::universe::particles::{Planet, Star};
+use crate::constants::{GRAVITATIONAL, SOLAR_MASS, SOLAR_RADIUS};
+use crate::universe::particles::{ParticleT, Planet};
 use serde::{Deserialize, Serialize};
 
-pub(crate) mod stellar_equilibrium;
-pub use stellar_equilibrium::Equilibrium;
-
-pub(crate) mod stellar_inertial;
-pub use stellar_inertial::Inertial;
-
-// Stellar constant time lag tide: the star is the tidally deformed body (Benbakoura et al.
-// 2019). Produces the tidal torque on the star, from which physics.rs derives the stellar
-// spin and the semi-major axis; circular coplanar orbit.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
-pub struct StellarConstantTimeLag {
-    pub equilibrium: Equilibrium,
-    pub inertial: Inertial,
-}
-
-impl StellarConstantTimeLag {
-    // This is a re-write of Eq. 3 and 19 from Benbakoura et al. 2019
-    // without the factors that are in the function semi_major_axis_13_div_2_derivative in physics.rs
-    // The a^-6 is here to compensate the a^6 in physics.rs
-    pub fn stellar_tidal_torque(&self, star: &Star, planet: &Planet) -> f64 {
-        let total_dissipation = 1. / self.equilibrium.tidal_quality(star, planet)
-            + 1. / self.inertial.tidal_quality(star, planet);
-
-        let tidal_quality = 1. / total_dissipation;
-        // Smoothing parameter when tidal frequency is 0
-        let depth = 1e-8;
-        -(9. / 4.)
-            * planet.mass.powi(2)
-            * GRAVITATIONAL
-            * planet.semi_major_axis.powi(-6)
-            * tanh!(star.tidal_frequency / depth)
-            * star.radius.powi(5)
-            / tidal_quality
-    }
-}
-
-// Planetary constant time lag tide: the planet is the tidally deformed body.
+// Constant time lag equilibrium tide, shared by the star and the planet.
 //
 // Hut (1981) weak-friction model in the form of Leconte et al. (2010), Eqs. 2 to 12: the
-// tidal bulge of the planet lags the perturber by a constant time delta_t, so the phase lag
-// of every tidal component is proportional to its frequency and the secular equations are
-// closed-form polynomials in the eccentricity, valid at any eccentricity. Coplanar case only
-// (planet obliquity x_p = cos(eps_p) = 1): the semi-major axis, the eccentricity and the
-// planet spin are evolved; angular momentum is exchanged between the planet spin and the
-// orbit only, the star is not affected. Unlike `StellarConstantTimeLag`, which produces a
-// torque on the star, this model produces the orbit and planet spin derivatives directly
-// (see physics.rs).
+// tidal bulge of the deformed body lags the perturber by a constant time delta_t, so the
+// phase lag of every tidal component is proportional to its frequency and the secular
+// equations are closed-form polynomials in the eccentricity, valid at any eccentricity.
+// Coplanar case only (obliquity x = cos(eps) = 1).
+//
+// The same equations serve both bodies. Every function takes the roles explicitly:
+// - `deformed`: the body that carries the tidal bulge (its radius, its spin),
+// - `perturber`: the body that raises the tide (its mass),
+// - `orbit`: the body that carries the orbital elements (always the planet: a, n, e).
+// Stellar tide: `(star, planet, planet)`. Planetary tide: `(planet, star, planet)`.
+//
+// The model evolves the semi-major axis, the eccentricity and the spin of the deformed
+// body; angular momentum is exchanged between that spin and the orbit only (see physics.rs).
 
-/// How the planetary constant time lag tide treats the planet spin.
+/// How the constant time lag tide treats the spin of the PLANET (ignored on the star, whose
+/// spin is always integrated through the angular momentum of its convective zone).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 pub enum PlanetarySpin {
     /// The spin is held at its pseudo-synchronous value `omega_eq = N(e) / Omega(e) n`
@@ -67,27 +37,59 @@ pub enum PlanetarySpin {
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields, default)]
-pub struct PlanetaryConstantTimeLag {
-    /// Product of the planet's second order potential love number and its constant time lag,
-    /// `k2_p * delta_t_p` (s). Leconte et al. (2010): 2 to 3e-2 s for Jupiter; 213 s for the
-    /// Earth (Neron de Surgy & Laskar 1997). Must be positive.
+pub struct ConstantTimeLag {
+    /// Product of the second order potential love number of the deformed body and its
+    /// constant time lag, `k2 * delta_t` (s), constant in time. Leconte et al. (2010): 2 to
+    /// 3e-2 s for Jupiter; 213 s for the Earth (Neron de Surgy & Laskar 1997).
+    /// Give either this or `sigma_bar_star`.
     pub k2_delta_t: f64,
+    /// Star only: normalised dissipation of Hansen (2010, 2012), `sigma_bar_star`
+    /// (dimensionless, e.g. 7.8e-8), constant in time. The time lag then follows the stellar
+    /// radius, see `ConstantTimeLag::k2_delta_t`. Give either this or `k2_delta_t`.
+    pub sigma_bar_star: f64,
+    /// Planet only, see `PlanetarySpin`.
     pub spin: PlanetarySpin,
 }
 
-impl PlanetaryConstantTimeLag {
-    /// Tidal prefactor `K_p` (W), Leconte et al. (2010) Eq. 5:
+impl ConstantTimeLag {
+    /// `k2 * delta_t` (s) of the deformed body.
+    ///
+    /// Either the constant input `k2_delta_t`, or, from the normalised dissipation
+    /// `sigma_bar_star` (Bolmont & Mathis 2016 Eq. 8, Bolmont et al. 2015 Eq. 28):
     /// ```text
-    /// K_p = 3/2 k2_p dt_p (G M_p^2 / R_p) (M_star / M_p)^2 (R_p / a)^6 n^2
-    ///     = 3/2 k2_p dt_p G M_star^2 R_p^5 n^2 / a^6
+    /// k2 dt = 3/2 sigma_bar_star sigma_0 R^5 / G,    sigma_0 = sqrt(G / (M_sun R_sun^7))
     /// ```
-    pub(crate) fn prefactor(&self, planet: &Planet, star: &Star) -> f64 {
-        1.5 * self.k2_delta_t
+    /// i.e. 2389 s * `sigma_bar_star` * (R / `R_sun`)^5. This is the relation that reproduces
+    /// the definition of the dissipation by the orbital decay rate (Hansen 2010 Eq. 5,
+    /// Bolmont & Mathis 2016 Eqs. 12 and 13). Benbakoura et al. (2019) Eq. 21 writes it
+    /// without the factor 3/2, which is where the extra 3/2 of their Eq. 22 comes from.
+    pub(crate) fn k2_delta_t(&self, deformed: &impl ParticleT) -> f64 {
+        if self.sigma_bar_star > 0. {
+            let normalisation_constant = sqrt!(GRAVITATIONAL / (SOLAR_MASS * SOLAR_RADIUS.powi(7)));
+            1.5 * self.sigma_bar_star * normalisation_constant * deformed.radius().powi(5)
+                / GRAVITATIONAL
+        } else {
+            self.k2_delta_t
+        }
+    }
+
+    /// Tidal prefactor `K` (W) of the deformed body, Leconte et al. (2010) Eq. 5:
+    /// ```text
+    /// K = 3/2 k2 dt (G M_def^2 / R_def) (M_pert / M_def)^2 (R_def / a)^6 n^2
+    ///   = 3/2 k2 dt G M_pert^2 R_def^5 n^2 / a^6
+    /// ```
+    pub(crate) fn prefactor(
+        &self,
+        deformed: &impl ParticleT,
+        perturber: &impl ParticleT,
+        orbit: &Planet,
+    ) -> f64 {
+        1.5 * self.k2_delta_t(deformed)
             * GRAVITATIONAL
-            * star.mass.powi(2)
-            * planet.radius.powi(5)
-            * planet.mean_motion.powi(2)
-            / planet.semi_major_axis.powi(6)
+            * perturber.mass().powi(2)
+            * deformed.radius().powi(5)
+            * orbit.mean_motion.powi(2)
+            / orbit.semi_major_axis.powi(6)
     }
 
     // Eccentricity functions of Hut (1981), numbered as in Leconte et al. (2010).
@@ -133,58 +135,78 @@ impl PlanetaryConstantTimeLag {
         Self::big_n(planet.eccentricity) / Self::big_omega(planet.eccentricity) * planet.mean_motion
     }
 
-    /// Tidal torque exerted on the planet by the star (kg.m2.s-2), Eq. 9 with `x_p = 1`:
+    /// Tidal torque exerted on the deformed body by the perturber (kg.m2.s-2), Eq. 9 with
+    /// `x = 1`:
     /// ```text
-    /// C_p d(omega_p)/dt = -(K_p / n) [2 Omega(e) omega_p / n - 2 N(e)]
+    /// C d(omega)/dt = -(K / n) [2 Omega(e) omega / n - 2 N(e)]
     /// ```
-    /// For `e = 0` this is Hut's `-3 k2 dt G M_star^2 R_p^5 (omega_p - n) / a^6`.
-    pub(crate) fn planetary_tidal_torque(&self, planet: &Planet, star: &Star) -> f64 {
-        let e = planet.eccentricity;
-        -self.prefactor(planet, star) / planet.mean_motion
-            * (2. * Self::big_omega(e) * planet.spin / planet.mean_motion - 2. * Self::big_n(e))
+    /// For `e = 0` this is Hut's `-3 k2 dt G M_pert^2 R_def^5 (omega - n) / a^6`, which for the
+    /// star is the torque of Benbakoura et al. (2019) Eq. 19 with the equilibrium tide
+    /// quality factor `Q' = G / (sigma_star R^5 |2 (omega - n)|)`.
+    pub(crate) fn tidal_torque(
+        &self,
+        deformed: &impl ParticleT,
+        perturber: &impl ParticleT,
+        orbit: &Planet,
+    ) -> f64 {
+        let e = orbit.eccentricity;
+        -self.prefactor(deformed, perturber, orbit) / orbit.mean_motion
+            * (2. * Self::big_omega(e) * deformed.spin() / orbit.mean_motion - 2. * Self::big_n(e))
     }
 
-    /// Derivative of `a^(13/2)` (the integrated variable) from the planetary tide.
-    /// Leconte et al. (2010) Eq. 2, planetary term:
+    /// Derivative of `a^(13/2)` (the integrated variable) from the tide raised on `deformed`.
+    /// Leconte et al. (2010) Eq. 2, one of its two symmetric terms:
     /// ```text
-    /// (1/a) da/dt = 4 a / (G M_star M_p) K_p [N(e) omega_p / n - N_a(e)]
+    /// (1/a) da/dt = 4 a / (G M_star M_p) K [N(e) omega / n - N_a(e)]
     /// ```
-    pub(crate) fn semi_major_axis_13_div_2_derivative(&self, planet: &Planet, star: &Star) -> f64 {
-        let e = planet.eccentricity;
-        let relative_rate = 4. * planet.semi_major_axis / (GRAVITATIONAL * star.mass * planet.mass)
-            * self.prefactor(planet, star)
-            * (Self::big_n(e) * planet.spin / planet.mean_motion - Self::big_n_a(e));
+    pub(crate) fn semi_major_axis_13_div_2_derivative(
+        &self,
+        deformed: &impl ParticleT,
+        perturber: &impl ParticleT,
+        orbit: &Planet,
+    ) -> f64 {
+        let e = orbit.eccentricity;
+        let relative_rate = 4. * orbit.semi_major_axis
+            / (GRAVITATIONAL * perturber.mass() * deformed.mass())
+            * self.prefactor(deformed, perturber, orbit)
+            * (Self::big_n(e) * deformed.spin() / orbit.mean_motion - Self::big_n_a(e));
 
-        6.5 * planet.semi_major_axis.powf(6.5) * relative_rate
+        6.5 * orbit.semi_major_axis.powf(6.5) * relative_rate
     }
 
-    /// Derivative of `e^2` (the integrated variable) from the planetary tide.
-    /// Leconte et al. (2010) Eq. 6, planetary term:
+    /// Derivative of `e^2` (the integrated variable) from the tide raised on `deformed`.
+    /// Leconte et al. (2010) Eq. 6, one of its two symmetric terms:
     /// ```text
-    /// (1/e) de/dt = 11 a / (G M_star M_p) K_p [Omega_e(e) omega_p / n - 18/11 N_e(e)]
+    /// (1/e) de/dt = 11 a / (G M_star M_p) K [Omega_e(e) omega / n - 18/11 N_e(e)]
     /// ```
     /// so `d(e^2)/dt = 2 e^2 (1/e) de/dt`, which is 0 for a circular orbit.
-    pub(crate) fn eccentricity_squared_derivative(&self, planet: &Planet, star: &Star) -> f64 {
-        let e = planet.eccentricity;
+    pub(crate) fn eccentricity_squared_derivative(
+        &self,
+        deformed: &impl ParticleT,
+        perturber: &impl ParticleT,
+        orbit: &Planet,
+    ) -> f64 {
+        let e = orbit.eccentricity;
         if e == 0. {
             return 0.;
         }
-        let relative_rate = 11. * planet.semi_major_axis
-            / (GRAVITATIONAL * star.mass * planet.mass)
-            * self.prefactor(planet, star)
-            * (Self::big_omega_e(e) * planet.spin / planet.mean_motion
+        let relative_rate = 11. * orbit.semi_major_axis
+            / (GRAVITATIONAL * perturber.mass() * deformed.mass())
+            * self.prefactor(deformed, perturber, orbit)
+            * (Self::big_omega_e(e) * deformed.spin() / orbit.mean_motion
                 - 18. / 11. * Self::big_n_e(e));
 
         2. * e * e * relative_rate
     }
 
-    /// Derivative of the planet spin (rad.s-2): the torque divided by the planet's moment
-    /// of inertia (constant). Zero when the spin is held pseudo-synchronous.
-    pub(crate) fn spin_derivative(&self, planet: &Planet, star: &Star) -> f64 {
+    /// Derivative of the PLANET spin (rad.s-2) from the tide raised on the planet: the torque
+    /// divided by the planet's moment of inertia (constant). Zero when the spin is held
+    /// pseudo-synchronous.
+    pub(crate) fn planet_spin_derivative(&self, planet: &Planet, star: &impl ParticleT) -> f64 {
         match self.spin {
             PlanetarySpin::PseudoSynchronous => 0.,
             PlanetarySpin::Free => {
-                self.planetary_tidal_torque(planet, star) / planet.moment_of_inertia
+                self.tidal_torque(planet, star, planet) / planet.moment_of_inertia
             }
         }
     }
@@ -195,5 +217,8 @@ pub mod tests;
 
 // References:
 // Benbakoura et al. 2019, https://doi.org/10.1051/0004-6361/201833314
+// Bolmont et al. 2015, https://doi.org/10.1051/0004-6361/201525909
+// Bolmont & Mathis 2016, https://doi.org/10.1007/s10569-016-9690-3
+// Hansen 2010, https://doi.org/10.1088/0004-637X/723/1/285
 // Hut 1981, https://ui.adsabs.harvard.edu/abs/1981A%26A....99..126H/abstract
 // Leconte et al. 2010, https://doi.org/10.1051/0004-6361/201014337

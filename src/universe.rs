@@ -2,7 +2,7 @@ pub(crate) mod effects;
 pub(crate) mod particles;
 pub(crate) mod physics;
 
-use effects::tides::{PlanetaryConstantTimeLag, PlanetarySpin};
+use effects::tides::{ConstantTimeLag, PlanetarySpin};
 pub use effects::{Kaula, SpectrumFile};
 pub use particles::{Particle, ParticleType, Planet, Star, StarCsv};
 
@@ -343,24 +343,22 @@ impl Universe {
         star.refresh_tidal_frequency(planet);
 
         // The planet orbital elements (spin, e, i, angles) are only evolved when kaula
-        // tides are enabled on either body, or the constant time lag tide on the planet.
-        // TODO (check): enabling the kaula STELLAR tide alone (planet tides disabled) also
-        // takes this branch. Compared to a CTL-only run (where the eccentricity stays
-        // frozen at its input value and this branch is skipped) this means:
+        // tides or the constant time lag tide are enabled on either body.
+        // TODO (check): enabling a STELLAR tide alone (planet tides disabled) also takes
+        // this branch. Compared to a run with only quality factor stellar tides (where the
+        // eccentricity stays frozen at its input value and this branch is skipped) this means:
         // - the eccentricity is read back from the integrated e^2 (needed, the stellar
         //   tide writes de^2/dt) and snapped to 0 below 1e-8,
         // - the planet spin is read back although no derivative writes it, and is snapped
         //   to the mean motion when within 1e-9 of synchronous,
         // - the inclination and spin inclination are zeroed below 1e-4 degrees.
-        // Check that these snaps do not bias a CTL vs kaula stellar tide comparison.
+        // Check that these snaps do not bias a comparison between stellar tide models.
         let planet_kaula = self.orbiting_body.tides.kaula_enabled();
         let star_kaula = self.central_body.tides.kaula_enabled();
-        // The constant time lag planetary tide writes de^2/dt and the planet spin derivative.
-        let planet_ctl = self
-            .orbiting_body
-            .tides
-            .planetary_constant_time_lag_enabled();
-        if planet_kaula || star_kaula || planet_ctl {
+        // The constant time lag tide writes de^2/dt, and on the planet its spin derivative.
+        let planet_ctl = self.orbiting_body.tides.constant_time_lag_enabled();
+        let star_ctl = self.central_body.tides.constant_time_lag_enabled();
+        if planet_kaula || star_kaula || planet_ctl || star_ctl {
             //(spin, eccentricity, inclination, longitude_ascending_node, pericentre_omega, spin_inclination)
             // Invert the exponent of e^2 to normalise the eccentricity.
             // The integrated e^2 can overshoot slightly below zero when the tide circularises
@@ -377,10 +375,10 @@ impl Universe {
             // Constant time lag planetary tide with the spin held pseudo-synchronous
             // (Leconte et al. 2010 Eq. 12): the integrated spin is ignored, the planet spin
             // follows the orbit. Must follow `refresh_orbital_elements` (reads e and n).
-            if let Some(ctl) = self.orbiting_body.tides.planetary_constant_time_lag_get()
+            if let Some(ctl) = self.orbiting_body.tides.constant_time_lag_get()
                 && ctl.spin == PlanetarySpin::PseudoSynchronous
             {
-                planet.spin = PlanetaryConstantTimeLag::pseudo_synchronous_spin(planet);
+                planet.spin = ConstantTimeLag::pseudo_synchronous_spin(planet);
             }
         } else if self.central_body.general_relativity.is_enabled() {
             // General relativity only evolves pericentre_omega
