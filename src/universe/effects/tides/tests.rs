@@ -235,16 +235,34 @@ fn _initialise_star_constant_time_lag_inputs() {
             },
         )
     };
-    // Neither input, both inputs, or a negative one.
+    // The dissipation must be given and positive.
     for ctl in [
         ConstantTimeLag::default(),
         ConstantTimeLag {
-            k2_delta_t: 1e-3,
-            sigma_bar_star: 1e-6,
+            sigma_bar_star: -1e-6,
             ..Default::default()
         },
         ConstantTimeLag {
-            sigma_bar_star: -1e-6,
+            sigma_bar_star: f64::NAN,
+            ..Default::default()
+        },
+    ] {
+        let error = initialise_error(star(ctl));
+        assert!(
+            error.contains("needs a positive `sigma_bar_star`"),
+            "{error}"
+        );
+    }
+    // `k2_delta_t` is the planetary input: refused on the star, alone or with
+    // `sigma_bar_star`.
+    for ctl in [
+        ConstantTimeLag {
+            k2_delta_t: 1e-3,
+            ..Default::default()
+        },
+        ConstantTimeLag {
+            k2_delta_t: 1e-3,
+            sigma_bar_star: 1e-6,
             ..Default::default()
         },
         ConstantTimeLag {
@@ -253,18 +271,15 @@ fn _initialise_star_constant_time_lag_inputs() {
         },
     ] {
         let error = initialise_error(star(ctl));
-        assert!(error.contains("sigma_bar_star"), "{error}");
+        assert!(
+            error.contains("`k2_delta_t` is the planetary input"),
+            "{error}"
+        );
     }
-    // Either input alone is accepted.
-    for ctl in [
-        test_stellar_constant_time_lag(),
-        ConstantTimeLag {
-            k2_delta_t: 1e-3,
-            ..Default::default()
-        },
-    ] {
-        star(ctl).initialise(0.0).unwrap();
-    }
+    // `sigma_bar_star` alone is accepted.
+    star(test_stellar_constant_time_lag())
+        .initialise(0.0)
+        .unwrap();
 }
 
 #[test]

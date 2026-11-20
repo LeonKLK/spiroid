@@ -90,7 +90,8 @@ fn _eccentricity_functions() {
 // Time lag of the deformed body
 
 #[test]
-// A direct `k2_delta_t` is used as given, for either body.
+// A direct `k2_delta_t` (the planetary input) is used as given, whatever the deformed body:
+// the equations do not depend on which body they are applied to.
 fn _k2_delta_t_direct() {
     let ctl = test_planetary_constant_time_lag();
     assert_eq!(0.025, ctl.k2_delta_t(&test_planet()));

@@ -50,15 +50,17 @@ impl Particle {
                     );
                 }
                 if let Some(ctl) = self.tides.constant_time_lag_get() {
-                    // Missing inputs deserialise to 0 (serde default); NaN is refused too.
-                    let k2_delta_t = ctl.k2_delta_t.partial_cmp(&0.0) == Some(Ordering::Greater);
-                    let sigma_bar_star =
-                        ctl.sigma_bar_star.partial_cmp(&0.0) == Some(Ordering::Greater);
-                    let valid = (k2_delta_t && ctl.sigma_bar_star == 0.0)
-                        || (sigma_bar_star && ctl.k2_delta_t == 0.0);
-                    if !valid {
+                    // `k2_delta_t` is a lag constant in time: for the star the lag follows the
+                    // radius through `sigma_bar_star` (Hansen 2010, Bolmont et al. 2015 Eq. 28).
+                    if ctl.k2_delta_t != 0.0 {
                         bail!(
-                            "the constant time lag tide of the star needs either a positive `sigma_bar_star` () or a positive `k2_delta_t` (s), not both"
+                            "`k2_delta_t` is the planetary input: the constant time lag tide of the star takes `sigma_bar_star`"
+                        );
+                    }
+                    // Missing inputs deserialise to 0 (serde default); NaN is refused too.
+                    if ctl.sigma_bar_star.partial_cmp(&0.0) != Some(Ordering::Greater) {
+                        bail!(
+                            "the stellar constant time lag tide needs a positive `sigma_bar_star`"
                         );
                     }
                 }

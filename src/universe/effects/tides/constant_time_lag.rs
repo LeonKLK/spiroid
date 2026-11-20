@@ -38,14 +38,14 @@ pub enum PlanetarySpin {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields, default)]
 pub struct ConstantTimeLag {
-    /// Product of the second order potential love number of the deformed body and its
-    /// constant time lag, `k2 * delta_t` (s), constant in time. Leconte et al. (2010): 2 to
-    /// 3e-2 s for Jupiter; 213 s for the Earth (Neron de Surgy & Laskar 1997).
-    /// Give either this or `sigma_bar_star`.
+    /// Planet only (refused on the star in `Particle::initialise`): product of the second
+    /// order potential love number of the planet and its constant time lag, `k2 * delta_t`
+    /// (s), constant in time. Leconte et al. (2010): 2 to 3e-2 s for Jupiter; 213 s for the
+    /// Earth (Neron de Surgy & Laskar 1997).
     pub k2_delta_t: f64,
-    /// Star only: normalised dissipation of Hansen (2010, 2012), `sigma_bar_star`
-    /// (dimensionless, e.g. 7.8e-8), constant in time. The time lag then follows the stellar
-    /// radius, see `ConstantTimeLag::k2_delta_t`. Give either this or `k2_delta_t`.
+    /// Star only (refused on the planet): normalised dissipation of Hansen (2010, 2012),
+    /// `sigma_bar_star` (dimensionless, e.g. 7.8e-8), constant in time. The time lag of the
+    /// star then follows its radius, see `ConstantTimeLag::k2_delta_t`.
     pub sigma_bar_star: f64,
     /// Planet only, see `PlanetarySpin`.
     pub spin: PlanetarySpin,
@@ -54,8 +54,8 @@ pub struct ConstantTimeLag {
 impl ConstantTimeLag {
     /// `k2 * delta_t` (s) of the deformed body.
     ///
-    /// Either the constant input `k2_delta_t`, or, from the normalised dissipation
-    /// `sigma_bar_star` (Bolmont & Mathis 2016 Eq. 8, Bolmont et al. 2015 Eq. 28):
+    /// The constant input `k2_delta_t` (planet), or, from the normalised dissipation
+    /// `sigma_bar_star` (star; Bolmont & Mathis 2016 Eq. 8, Bolmont et al. 2015 Eq. 28):
     /// ```text
     /// k2 dt = 3/2 sigma_bar_star sigma_0 R^5 / G,    sigma_0 = sqrt(G / (M_sun R_sun^7))
     /// ```

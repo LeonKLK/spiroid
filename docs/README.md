@@ -226,8 +226,8 @@ On the planet, `ConstantTimeLag` and `KaulaTides` cannot both be enabled: the lo
 #### Equilibrium tide: `ConstantTimeLag` (star and planet)
 The tidal bulge of the deformed body lags the perturber by a constant time ([Hut 1981](https://ui.adsabs.harvard.edu/abs/1981A%26A....99..126H/abstract), in the form of [Leconte et al. 2010](https://doi.org/10.1051/0004-6361/201014337) Eqs. 2 to 12, obliquity 0). One set of equations serves both bodies: on the `central_body` the star is the deformed body and the planet the perturber, on the `orbiting_body` the roles are swapped. It evolves the semi-major axis, the eccentricity (any value, closed-form eccentricity functions) and the spin of the deformed body. Fields:
 
-- `k2_delta_t` the product of the love number and the time lag of the deformed body, $k_2\,\Delta t$ (s), constant in time, e.g. 0.025 for Jupiter.
-- `sigma_bar_star` (star only, instead of `k2_delta_t`) the normalised dissipation $\bar\sigma_\star$ of [Hansen 2010](https://doi.org/10.1088/0004-637X/723/1/285), constant in time. The time lag then follows the stellar radius ([Bolmont & Mathis 2016](https://doi.org/10.1007/s10569-016-9690-3) Eq. 8), about 2389 s $\times\,\bar\sigma_\star\,(R_\star/R_\odot)^5$:
+- `k2_delta_t` (planet only) the product of the love number and the time lag of the planet, $k_2\,\Delta t$ (s), constant in time, e.g. 0.025 for Jupiter.
+- `sigma_bar_star` (star only) the normalised dissipation $\bar\sigma_\star$ of [Hansen 2010](https://doi.org/10.1088/0004-637X/723/1/285), constant in time. The time lag then follows the stellar radius ([Bolmont & Mathis 2016](https://doi.org/10.1007/s10569-016-9690-3) Eq. 8), about 2389 s $\times\,\bar\sigma_\star\,(R_\star/R_\odot)^5$:
 
 $$k_{2,\star}\,\Delta t_\star = \frac{3}{2}\,\bar\sigma_\star\,\sigma_0\,\frac{R_\star^5}{G}, \qquad \sigma_0 = \sqrt{\frac{G}{M_\odot R_\odot^7}}$$
 
